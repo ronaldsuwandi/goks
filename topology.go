@@ -1,7 +1,7 @@
 package goks
 
 type Topology struct {
-	S Stream
+	input []Stream
 }
 
 func (t Topology) Describe() string {
@@ -9,5 +9,7 @@ func (t Topology) Describe() string {
 }
 
 func (t Topology) pipe(msg string) {
-	t.S.process(msg)
+	for i := range t.input {
+		t.input[i].process(msg)
+	}
 }
