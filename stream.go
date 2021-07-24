@@ -1,52 +1,50 @@
 package goks
 
-import "log"
-
 type Stream struct {
-	A     string
-	topic string
-
-	process func(msg string)
+	topic   string
+	name    string
+	process func(kvc KeyValueContext)
 }
 
-func (s *Stream) Filter(fn func(msg string) bool) *Stream {
+func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	next := Stream{}
 
-	s.process = func(msg string) {
-		log.Println("filtering: %s", msg)
-		if fn(msg) {
-			log.Println("true, proceed next")
-			next.process(msg)
+	s.process = func(kvc KeyValueContext) {
+		if fn(kvc) {
+			next.process(kvc)
 		}
 	}
 
 	return &next
 }
 
-func (s *Stream) Map(fn func(msg string) string) *Stream {
+func (s *Stream) Map(fn func(kvc KeyValueContext) KeyValueContext) *Stream {
 	next := Stream{}
-	s.process = func(msg string) {
-		next.process(fn(msg))
+
+	s.process = func(kvc KeyValueContext) {
+		next.process(fn(kvc))
 	}
+
 	return &next
 }
 
-func (s *Stream) Peek(fn func(msg string)) {
-	s.process = func(msg string) {
-		fn(msg)
+func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
+	s.process = func(kvc KeyValueContext) {
+		fn(kvc)
 	}
+	return s
 }
 
-func (s *Stream) Branch(fns ...func(msg string) bool) []Stream {
+func (s *Stream) Branch(fns ...func(kvc KeyValueContext) bool) []Stream {
 	branches := make([]Stream, len(fns))
 	for i := range fns {
 		branches[i] = Stream{}
 	}
 
-	s.process = func(msg string) {
+	s.process = func(kvc KeyValueContext) {
 		for i, fn := range fns {
-			if fn(msg) {
-				branches[i].process(msg)
+			if fn(kvc) {
+				branches[i].process(kvc)
 			}
 		}
 	}
