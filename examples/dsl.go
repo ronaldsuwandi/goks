@@ -2,19 +2,41 @@ package main
 
 import (
 	"github.com/ronaldsuwandi/goks"
+	"github.com/ronaldsuwandi/goks/serde"
 	"log"
 )
 
 func main() {
 
 	sb := goks.NewStreamBuilder()
-	sb.Stream("kya").
+	sb.Stream("kya", serde.StringDeserializer{}).
 		Filter(func(kvc goks.KeyValueContext) bool {
-			log.Println("!!")
 			return true
 		}).
+		Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
+			k := kvc.Key.(string)
+			v := kvc.Value.(string) + "-mapped"
+
+			return goks.KeyValueContext{
+				Key: k,
+				ValueContext: goks.ValueContext{
+					Value: v,
+					Ctx:   kvc.Ctx,
+				},
+			}
+		}).
 		Peek(func(kvc goks.KeyValueContext) {
-			log.Println("k=%v\tv=%v\n", kvc.Key, kvc.Value)
+			log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
+		}).
+		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+			v := kvc.Value.(string) + "-MAPVAL"
+			return goks.ValueContext{
+				Value: v,
+				Ctx:   kvc.Ctx,
+			}
+		}).
+		Peek(func(kvc goks.KeyValueContext) {
+			log.Printf("k=%v\tv=%v\n", kvc.Key, kvc.Value)
 		})
 
 	//sb.Stream("topic").

@@ -1,6 +1,7 @@
 package goks
 
 import (
+	"github.com/ronaldsuwandi/goks/serde"
 	"log"
 	"sync"
 )
@@ -12,11 +13,12 @@ type StreamBuilder struct {
 	//global ktables
 }
 
-func (sb *StreamBuilder) Stream(topic string) *Stream {
+func (sb *StreamBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
 	sb.mutex.Lock()
 	sb.streams = append(sb.streams, Stream{
-		topic:   topic,
-		process: noop, // default do nothing
+		topic:        topic,
+		deserializer: deserializer,
+		processFn:    noop, // default do nothing
 	})
 	result := &sb.streams[len(sb.streams)-1]
 	sb.mutex.Unlock()
