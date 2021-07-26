@@ -7,9 +7,8 @@ import (
 )
 
 func main() {
-
 	sb := goks.NewStreamBuilder()
-	sb.Stream("kya", serde.StringDeserializer{}).
+	sb.Stream("input", serde.StringDeserializer{}).
 		Filter(func(kvc goks.KeyValueContext) bool {
 			return true
 		}).
@@ -65,5 +64,9 @@ func main() {
 	//}
 
 	t := sb.Build()
-	goks.Start(t)
+	g, err := goks.New(t)
+	if err != nil {
+		panic(err)
+	}
+	log.Fatal(g.Start())
 }

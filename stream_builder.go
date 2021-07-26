@@ -11,6 +11,7 @@ type StreamBuilder struct {
 	streams []Stream
 	//tables
 	//global ktables
+	// config
 }
 
 func (sb *StreamBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
@@ -40,5 +41,6 @@ func noop(_ KeyValueContext) {}
 func NewStreamBuilder( /*config*/ ) StreamBuilder {
 	return StreamBuilder{
 		mutex: &sync.Mutex{},
+		// config: config,
 	}
 }
