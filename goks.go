@@ -78,7 +78,10 @@ func (g *Goks) Start() error {
 				if e.Headers != nil {
 					fmt.Printf("%% Headers: %v\n", e.Headers)
 				}
-				g.topology.pipe(e)
+				g.topology.pipeStreams(e)
+
+				// TODO commit.interval.ms cache
+				g.topology.pipeTables(e)
 			case kafka.Error:
 				// Errors should generally be considered
 				// informational, the client will try to
