@@ -19,7 +19,7 @@ func (sb *StreamBuilder) Stream(topic string, deserializer serde.Deserializer) *
 	sb.streams = append(sb.streams, Stream{
 		topic:        topic,
 		deserializer: deserializer,
-		processFn:    noop, // default do nothing
+		processFns:   []streamProcessFn{}, // default do nothing
 	})
 	result := &sb.streams[len(sb.streams)-1]
 	sb.mutex.Unlock()
@@ -29,9 +29,9 @@ func (sb *StreamBuilder) Stream(topic string, deserializer serde.Deserializer) *
 func (sb *StreamBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
 	sb.mutex.Lock()
 	sb.tables = append(sb.tables, Table{
-		topic: topic,
+		topic:        topic,
 		deserializer: deserializer,
-		processFn: noop, // default do nothing
+		processFn:    noop, // default do nothing
 	})
 	result := &sb.tables[len(sb.tables)-1]
 	sb.mutex.Unlock()
@@ -50,7 +50,7 @@ func (sb StreamBuilder) Build() Topology {
 
 func noop(_ KeyValueContext) {}
 
-func NewStreamBuilder( /*config*/) StreamBuilder {
+func NewStreamBuilder( /*config*/ ) StreamBuilder {
 	return StreamBuilder{
 		mutex: &sync.Mutex{},
 		// config: config,

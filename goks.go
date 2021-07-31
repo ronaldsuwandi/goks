@@ -7,11 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 type Goks struct {
 	consumer *kafka.Consumer
 	topology Topology
+
+	commitInterval time.Duration
 }
 
 func New(t Topology) (Goks, error) {
@@ -31,6 +34,19 @@ func New(t Topology) (Goks, error) {
 	}
 
 	return g, err
+}
+
+func (g *Goks) shouldForward(msg *kafka.Message, initialTimestamp time.Time) bool {
+	// TODO also return true if cache filled up
+	afterCommit := msg.Timestamp.Sub(initialTimestamp) >= g.commitInterval
+	return afterCommit
+}
+
+func (g *Goks) ProcessStream(s Stream, kvc KeyValueContext) {
+	nextStreams, nextKvcs := s.Process(kvc)
+	for i := range nextStreams {
+		g.ProcessStream(nextStreams[i], nextKvcs[i])
+	}
 }
 
 func (g *Goks) Start() error {
@@ -60,6 +76,9 @@ func (g *Goks) Start() error {
 	}
 
 	run := true
+
+	var initialTimestamp time.Time
+
 	for run {
 		select {
 		case sig := <-sigchan:
@@ -73,15 +92,34 @@ func (g *Goks) Start() error {
 			}
 			switch e := ev.(type) {
 			case *kafka.Message:
-				fmt.Printf("%% Message on %s:\n%s\n",
-					e.TopicPartition, string(e.Value))
-				if e.Headers != nil {
-					fmt.Printf("%% Headers: %v\n", e.Headers)
-				}
-				g.topology.pipeStreams(e)
+				//fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
+				//if e.Headers != nil {
+				//	fmt.Printf("%% Headers: %v\n", e.Headers)
+				//}
 
-				// TODO commit.interval.ms cache
-				g.topology.pipeTables(e)
+				for _, s := range g.topology.streams {
+					// deserialize here
+					dk := s.deserializer.Deserialize(e.Key)
+					dv := s.deserializer.Deserialize(e.Value)
+
+					kvc := KeyValueContext{
+						Key: dk,
+						ValueContext: ValueContext{
+							Value: dv,
+							Ctx:   contextFrom(e),
+						},
+					}
+
+					g.ProcessStream(s, kvc)
+				}
+
+				if initialTimestamp.IsZero() {
+					initialTimestamp = e.Timestamp
+				}
+
+				//e.Timestamp
+				//TODO commit.interval.ms cache
+				//g.topology.pipeTables(e)
 			case kafka.Error:
 				// Errors should generally be considered
 				// informational, the client will try to

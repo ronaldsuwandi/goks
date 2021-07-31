@@ -8,35 +8,65 @@ import (
 
 func main() {
 	sb := goks.NewStreamBuilder()
-	sb.Stream("input", serde.StringDeserializer{}).
+
+	st := sb.Stream("input", serde.StringDeserializer{}).
 		Filter(func(kvc goks.KeyValueContext) bool {
 			return true
-		}).
-		Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
-			k := kvc.Key.(string)
-			v := kvc.Value.(string) + "-mapped"
+		})
 
-			return goks.KeyValueContext{
-				Key: k,
-				ValueContext: goks.ValueContext{
-					Value: v,
-					Ctx:   kvc.Ctx,
-				},
+	st.
+		//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
+		//	k := kvc.Key.(string)
+		//	v := kvc.Value.(string) + "-mapped"
+		//
+		//	return goks.KeyValueContext{
+		//		Key: k,
+		//		ValueContext: goks.ValueContext{
+		//			Value: v,
+		//			Ctx:   kvc.Ctx,
+		//		},
+		//	}
+		//}).
+		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+			return goks.ValueContext{
+				Value: kvc.Value.(string) + "MAP1",
 			}
 		}).
 		Peek(func(kvc goks.KeyValueContext) {
 			log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
-		}).
+		})
+
+	st.
+		//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
+		//	k := kvc.Key.(string)
+		//	v := kvc.Value.(string) + "-mapped"
+		//
+		//	return goks.KeyValueContext{
+		//		Key: k,
+		//		ValueContext: goks.ValueContext{
+		//			Value: v,
+		//			Ctx:   kvc.Ctx,
+		//		},
+		//	}
+		//}).
 		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
-			v := kvc.Value.(string) + "-MAPVAL"
 			return goks.ValueContext{
-				Value: v,
-				Ctx:   kvc.Ctx,
+				Value: kvc.Value.(string) + "MAP2",
 			}
 		}).
 		Peek(func(kvc goks.KeyValueContext) {
-			log.Printf("k=%v\tv=%v\n", kvc.Key, kvc.Value)
+			log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
 		})
+	//MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+	//	v := kvc.Value.(string) + "-MAPVAL"
+	//	return goks.ValueContext{
+	//		Value: v,
+	//		Ctx:   kvc.Ctx,
+	//	}
+	//}).
+	//Peek(func(kvc goks.KeyValueContext) {
+	//	log.Printf("k=%v\tv=%v\n", kvc.Key, kvc.Value)
+	//})
 
 	//sb.Stream("topic").
 	//	Filter(func(msg string) bool {
