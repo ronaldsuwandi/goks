@@ -1,6 +1,7 @@
 package goks
 
 import (
+	"context"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"log"
@@ -40,13 +41,6 @@ func (g *Goks) shouldForward(msg *kafka.Message, initialTimestamp time.Time) boo
 	// TODO also return true if cache filled up
 	afterCommit := msg.Timestamp.Sub(initialTimestamp) >= g.commitInterval
 	return afterCommit
-}
-
-func (g *Goks) ProcessStream(s Stream, kvc KeyValueContext) {
-	nextStreams, nextKvcs := s.Process(kvc)
-	for i := range nextStreams {
-		g.ProcessStream(nextStreams[i], nextKvcs[i])
-	}
 }
 
 func (g *Goks) Start() error {
@@ -97,7 +91,7 @@ func (g *Goks) Start() error {
 				//	fmt.Printf("%% Headers: %v\n", e.Headers)
 				//}
 
-				for _, s := range g.topology.streams {
+				for i, s := range g.topology.streams {
 					// deserialize here
 					dk := s.deserializer.Deserialize(e.Key)
 					dv := s.deserializer.Deserialize(e.Value)
@@ -110,11 +104,27 @@ func (g *Goks) Start() error {
 						},
 					}
 
-					g.ProcessStream(s, kvc)
+					g.topology.streams[i].process(kvc)
 				}
 
 				if initialTimestamp.IsZero() {
 					initialTimestamp = e.Timestamp
+				}
+
+				for _, t := range g.topology.tables {
+					// deserialize here
+					dk := t.deserializer.Deserialize(e.Key)
+					dv := t.deserializer.Deserialize(e.Value)
+
+					_ = KeyValueContext{
+						Key: dk,
+						ValueContext: ValueContext{
+							Value: dv,
+							Ctx:   contextFrom(e),
+						},
+					}
+
+					//g.processTable(t, kvc)
 				}
 
 				//e.Timestamp
@@ -141,4 +151,12 @@ func (g *Goks) Start() error {
 func (g *Goks) Stop() {
 	log.Println("OEI")
 	g.consumer.Close()
+}
+
+func contextFrom(msg *kafka.Message) context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, Timestamp, msg.Timestamp)
+	ctx = context.WithValue(ctx, TimestampType, msg.TimestampType)
+	ctx = context.WithValue(ctx, Headers, msg.Headers)
+	return ctx
 }

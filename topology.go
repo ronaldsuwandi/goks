@@ -1,7 +1,6 @@
 package goks
 
 import (
-	"context"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
@@ -50,10 +49,10 @@ func (t Topology) Describe() string {
 //}
 //
 
-func contextFrom(msg *kafka.Message) context.Context {
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, Timestamp, msg.Timestamp)
-	ctx = context.WithValue(ctx, TimestampType, msg.TimestampType)
-	ctx = context.WithValue(ctx, Headers, msg.Headers)
-	return ctx
+func ToKeyValueContext(msg *kafka.Message) KeyValueContext {
+	//return KeyValueContext{
+	//	Key: msg.K,
+	//
+	//}
+	return KeyValueContext{}
 }

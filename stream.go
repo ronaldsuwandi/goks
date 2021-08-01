@@ -15,7 +15,7 @@ type Stream struct {
 	deserializer serde.Deserializer
 }
 
-func (s *Stream) Process(kvc KeyValueContext) ([]Stream, []KeyValueContext) {
+func (s *Stream) processHelper(kvc KeyValueContext) ([]Stream, []KeyValueContext) {
 	var nextStreams []Stream
 	var nextKvcs []KeyValueContext
 
@@ -26,8 +26,14 @@ func (s *Stream) Process(kvc KeyValueContext) ([]Stream, []KeyValueContext) {
 			nextKvcs = append(nextKvcs, nextKvc)
 		}
 	}
-
 	return nextStreams, nextKvcs
+}
+
+func (s *Stream) process(kvc KeyValueContext) {
+	nextStreams, nextKvcs := s.processHelper(kvc)
+	for i := range nextStreams {
+		nextStreams[i].process(nextKvcs[i])
+	}
 }
 
 func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {

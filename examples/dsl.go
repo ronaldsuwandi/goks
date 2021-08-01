@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	sb := goks.NewStreamBuilder()
+	sb := goks.NewTopologyBuilder()
 
 	st := sb.Stream("input", serde.StringDeserializer{}).
 		Filter(func(kvc goks.KeyValueContext) bool {
