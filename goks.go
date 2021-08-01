@@ -37,12 +37,6 @@ func New(t Topology) (Goks, error) {
 	return g, err
 }
 
-func (g *Goks) shouldForward(msg *kafka.Message, initialTimestamp time.Time) bool {
-	// TODO also return true if cache filled up
-	afterCommit := msg.Timestamp.Sub(initialTimestamp) >= g.commitInterval
-	return afterCommit
-}
-
 func (g *Goks) Start() error {
 	// TODO
 	// - validate topology first
@@ -63,6 +57,10 @@ func (g *Goks) Start() error {
 		inputTopics = append(inputTopics, s.topic)
 	}
 
+	for _, t := range g.topology.tables {
+		inputTopics = append(inputTopics, t.topic)
+	}
+
 	// TODO deal with rebalance
 	err := g.consumer.SubscribeTopics(inputTopics, nil)
 	if err != nil {
@@ -70,8 +68,6 @@ func (g *Goks) Start() error {
 	}
 
 	run := true
-
-	var initialTimestamp time.Time
 
 	for run {
 		select {
@@ -107,16 +103,12 @@ func (g *Goks) Start() error {
 					g.topology.streams[i].process(kvc)
 				}
 
-				if initialTimestamp.IsZero() {
-					initialTimestamp = e.Timestamp
-				}
-
-				for _, t := range g.topology.tables {
+				for i, t := range g.topology.tables {
 					// deserialize here
 					dk := t.deserializer.Deserialize(e.Key)
 					dv := t.deserializer.Deserialize(e.Value)
 
-					_ = KeyValueContext{
+					kvc := KeyValueContext{
 						Key: dk,
 						ValueContext: ValueContext{
 							Value: dv,
@@ -124,7 +116,7 @@ func (g *Goks) Start() error {
 						},
 					}
 
-					//g.processTable(t, kvc)
+					g.topology.tables[i].process(kvc)
 				}
 
 				//e.Timestamp
@@ -149,7 +141,7 @@ func (g *Goks) Start() error {
 }
 
 func (g *Goks) Stop() {
-	log.Println("OEI")
+	log.Println("OEI STOP")
 	g.consumer.Close()
 }
 

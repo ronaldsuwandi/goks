@@ -4,6 +4,7 @@ import (
 	"github.com/ronaldsuwandi/goks/serde"
 	"log"
 	"sync"
+	"time"
 )
 
 type TopologyBuilder struct {
@@ -29,9 +30,11 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
 	tb.mutex.Lock()
 	tb.tables = append(tb.tables, Table{
-		topic:        topic,
-		deserializer: deserializer,
-		processFn:    noop, // default do nothing
+		topic:          topic,
+		deserializer:   deserializer,
+		processFns:     []tableProcessFn{}, // default do nothing
+		commitInterval: time.Second,        // FIXME this should be only on the input level?
+
 	})
 	result := &tb.tables[len(tb.tables)-1]
 	tb.mutex.Unlock()
@@ -45,6 +48,7 @@ func (tb *TopologyBuilder) Print() {
 func (tb TopologyBuilder) Build() Topology {
 	return Topology{
 		streams: tb.streams,
+		tables:  tb.tables,
 	}
 }
 

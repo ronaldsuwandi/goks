@@ -2,86 +2,90 @@ package goks
 
 import (
 	"github.com/ronaldsuwandi/goks/serde"
+	"log"
+	"time"
 )
 
+type tableProcessFn func(kvc KeyValueContext) (*Table, KeyValueContext)
+
 type Table struct {
-	topic     string
-	name      string
-	processFn func(kvc KeyValueContext)
+	topic      string
+	name       string
+	processFns []tableProcessFn
 
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
 
+	// FIXME this should be only handled on input level - need to
+	cache            map[interface{}]interface{} // generics for key and value
+	initialTimestamp time.Time
+	commitInterval   time.Duration
+	// ---
+
+	// FIXME how to implement suppress?
+}
+
+func (t *Table) shouldForward(kvc KeyValueContext) bool {
+	// TODO also return true if cache filled up
+	afterCommit := kvc.Timestamp().Sub(t.initialTimestamp) >= t.commitInterval
+	return afterCommit
 
 }
 
-//func (s *Table) Filter(fn func(kvc KeyValueContext) bool) *Stream {
-//	next := NewStream()
-//
-//	// deserialize
-//	s.processFn = func(kvc KeyValueContext) {
-//		if fn(kvc) {
-//			next.processFn(kvc)
-//		}
-//	}
-//
-//	//serialize
-//
-//	return &next
-//}
-//
-//// FIXME Map should do repartition, need serializer
-//func (s *Table) Map(fn func(kvc KeyValueContext) KeyValueContext) *Stream {
-//	next := NewStream()
-//
-//	s.processFn = func(kvc KeyValueContext) {
-//		next.processFn(fn(kvc))
-//	}
-//
-//	return &next
-//}
-//
-//func (s *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
-//	next := NewStream()
-//
-//	s.processFn = func(kvc KeyValueContext) {
-//		vc := fn(kvc)
-//		next.processFn(KeyValueContext{
-//			Key:          kvc.Key,
-//			ValueContext: vc,
-//		})
-//	}
-//	return &next
-//}
+func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) {
+	var nextTables []Table
+	var nextKvcs []KeyValueContext
 
-func (s *Table) Peek(fn func(kvc KeyValueContext)) *Table {
-	next := NewTable()
-	s.processFn = func(kvc KeyValueContext) {
-		fn(kvc)
-		next.processFn(kvc)
+	// ONLY CHECK THIS IF INPUT != ""
+	if t.topic != "" {
+		if t.initialTimestamp.IsZero() {
+			log.Println("iszero!")
+			t.initialTimestamp = kvc.Timestamp()
+		} else {
+			log.Println("notzero = " + t.initialTimestamp.String())
+		}
 	}
-	return &next
+
+	if t.shouldForward(kvc) {
+		log.Println("diff=" + kvc.Timestamp().Sub(t.initialTimestamp).String() + " . commit interval=" + t.commitInterval.String())
+		// reset timestamp for input topic only
+		if t.topic != "" {
+			t.initialTimestamp = kvc.Timestamp()
+			log.Println("reset initial ts = " + t.initialTimestamp.String())
+		}
+
+		for _, fn := range t.processFns {
+			nextTable, nextKvc := fn(kvc)
+			if t != nil {
+				nextTables = append(nextTables, *nextTable)
+				nextKvcs = append(nextKvcs, nextKvc)
+			}
+		}
+	}
+	return nextTables, nextKvcs
 }
 
-//
-//func (s *Stream) Branch(fns ...func(kvc KeyValueContext) bool) []Stream {
-//	branches := make([]Stream, len(fns))
-//	for i := range fns {
-//		branches[i] = Stream{}
-//	}
-//
-//	s.processFn = func(kvc KeyValueContext) {
-//		for i, fn := range fns {
-//			if fn(kvc) {
-//				branches[i].processFn(kvc)
-//			}
-//		}
-//	}
-//
-//	return branches
-//}
+func (t *Table) process(kvc KeyValueContext) {
+	nextTables, nextKvcs := t.processHelper(kvc)
+	for i := range nextTables {
+		nextTables[i].process(nextKvcs[i])
+	}
+}
 
-// repartition needs serde interaction
+func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
+	next := NewTable()
+
+	t.processFns = append(t.processFns, func(kvc KeyValueContext) (*Table, KeyValueContext) {
+		vc := fn(kvc)
+		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
+	})
+	return &next
+
+}
+
+// TODO commit interval to be configurable
 func NewTable() Table {
-	return Table{processFn: noop}
+	return Table{
+		commitInterval: time.Second, // FIXME commit interval only to be used for initial?
+	}
 }
