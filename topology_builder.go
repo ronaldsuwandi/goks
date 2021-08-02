@@ -33,7 +33,8 @@ func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) 
 		topic:          topic,
 		deserializer:   deserializer,
 		processFns:     []tableProcessFn{}, // default do nothing
-		commitInterval: time.Second,        // FIXME this should be only on the input level?
+		input:          true,
+		commitInterval: time.Second, // FIXME this should be only on the input level?
 
 	})
 	result := &tb.tables[len(tb.tables)-1]

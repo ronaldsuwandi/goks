@@ -12,6 +12,7 @@ type Table struct {
 	topic      string
 	name       string
 	processFns []tableProcessFn
+	input      bool // flag to indicate if this Table is an input (from topic or from stream)
 
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
@@ -25,6 +26,7 @@ type Table struct {
 	// FIXME how to implement suppress?
 }
 
+// TODO this is only applicable for Suppress
 func (t *Table) shouldForward(kvc KeyValueContext) bool {
 	// TODO also return true if cache filled up
 	afterCommit := kvc.Timestamp().Sub(t.initialTimestamp) >= t.commitInterval
@@ -89,3 +91,17 @@ func NewTable() Table {
 		commitInterval: time.Second, // FIXME commit interval only to be used for initial?
 	}
 }
+
+
+// FIXME
+/**
+for input Table:
+1. start a goroutine or time interval
+2. goroutine will then signal when it's time to push context forward
+3. table should have another method to push cached context downstream
+
+cache need info:
+key, value, timestamp, timestamp pushed
+
+REMEMBER how to clear the time interval
+ */
