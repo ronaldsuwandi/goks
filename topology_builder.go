@@ -1,6 +1,7 @@
 package goks
 
 import (
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/ronaldsuwandi/goks/serde"
 	"log"
 	"sync"
@@ -12,7 +13,9 @@ type TopologyBuilder struct {
 	streams []Stream
 	tables  []Table
 	//global ktables
+
 	// config
+	producerChan chan *kafka.Message
 }
 
 func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
@@ -21,6 +24,7 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 		topic:        topic,
 		deserializer: deserializer,
 		processFns:   []streamProcessFn{}, // default do nothing
+		producerChan: tb.producerChan,
 	})
 	result := &tb.streams[len(tb.streams)-1]
 	tb.mutex.Unlock()
@@ -50,14 +54,16 @@ func (tb TopologyBuilder) Build() Topology {
 	return Topology{
 		streams: tb.streams,
 		tables:  tb.tables,
+		producerChan: tb.producerChan,
 	}
 }
 
 func noop(_ KeyValueContext) {}
 
-func NewTopologyBuilder( /*config*/ ) TopologyBuilder {
+func NewTopologyBuilder( /*config*/) TopologyBuilder {
 	return TopologyBuilder{
-		mutex: &sync.Mutex{},
+		mutex:        &sync.Mutex{},
+		producerChan: make(chan *kafka.Message),
 		// config: config,
 	}
 }

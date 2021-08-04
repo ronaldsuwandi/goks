@@ -3,7 +3,8 @@ package serde
 type StringSerializer struct{}
 
 func (s StringSerializer) Serialize(data interface{}) []byte {
-	return data.([]byte)
+	str := data.(string)
+	return []byte(str)
 }
 
 type StringDeserializer struct{}

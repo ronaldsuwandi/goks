@@ -13,6 +13,7 @@ import (
 
 type Goks struct {
 	consumer *kafka.Consumer
+	producer *kafka.Producer
 	topology Topology
 
 	commitInterval time.Duration
@@ -24,13 +25,27 @@ func New(t Topology) (Goks, error) {
 		"bootstrap.servers":  "localhost:9092",
 		"group.id":           "group",
 		"auto.offset.reset":  "earliest",
-		"enable.auto.commit": false,
+		"enable.auto.commit": true, // TODO handle commit
 	}
 
 	c, err := kafka.NewConsumer(consumerConf)
 
+	if err != nil {
+		return Goks{}, err
+	}
+
+	producerConf := &kafka.ConfigMap{
+		"bootstrap.servers": "localhost:9092",
+	}
+
+	p, err := kafka.NewProducer(producerConf)
+	if err != nil {
+		return Goks{}, err
+	}
+
 	g := Goks{
 		consumer: c,
+		producer: p,
 		topology: t,
 	}
 
@@ -69,12 +84,30 @@ func (g *Goks) Start() error {
 
 	run := true
 
+	// TODO need this for produer?
+	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
+
+	go func() {
+		log.Println("running producer code")
+		for {
+			select {
+			case msg := <-g.topology.producerChan:
+				log.Println("OEI")
+				g.producer.Produce(msg, nil)
+			default:
+
+			}
+		}
+	}()
+
 	for run {
 		select {
 		case sig := <-sigchan:
 			fmt.Printf("Terminating: %v\n", sig)
 			run = false
 			g.Stop()
+
 		default:
 			ev := g.consumer.Poll(100)
 			if ev == nil {
@@ -82,7 +115,7 @@ func (g *Goks) Start() error {
 			}
 			switch e := ev.(type) {
 			case *kafka.Message:
-				//fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
+				fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
 				//if e.Headers != nil {
 				//	fmt.Printf("%% Headers: %v\n", e.Headers)
 				//}

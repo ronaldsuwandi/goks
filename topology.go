@@ -8,6 +8,7 @@ type Topology struct {
 	streams []Stream
 	tables  []Table
 	//global ktables
+	producerChan chan *kafka.Message
 }
 
 func (t Topology) Describe() string {

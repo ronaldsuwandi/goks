@@ -1,7 +1,10 @@
 package goks
 
 import (
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/ronaldsuwandi/goks/serde"
+	"log"
+	"time"
 )
 
 type streamProcessFn func(kvc KeyValueContext) (*Stream, KeyValueContext)
@@ -11,8 +14,11 @@ type Stream struct {
 	name       string
 	processFns []streamProcessFn
 
+	// TODO split key and value serializer
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
+
+	producerChan chan<- *kafka.Message
 }
 
 func (s *Stream) processHelper(kvc KeyValueContext) ([]Stream, []KeyValueContext) {
@@ -21,7 +27,7 @@ func (s *Stream) processHelper(kvc KeyValueContext) ([]Stream, []KeyValueContext
 
 	for _, fn := range s.processFns {
 		nextStream, nextKvc := fn(kvc)
-		if s != nil {
+		if nextStream != nil {
 			nextStreams = append(nextStreams, *nextStream)
 			nextKvcs = append(nextKvcs, nextKvc)
 		}
@@ -37,7 +43,7 @@ func (s *Stream) process(kvc KeyValueContext) {
 }
 
 func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
-	next := NewStream()
+	next := NewStream(s.producerChan)
 
 	// deserialize
 	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
@@ -65,7 +71,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 //}
 //
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
-	next := NewStream()
+	next := NewStream(s.producerChan)
 
 	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
 		vc := fn(kvc)
@@ -75,7 +81,7 @@ func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 }
 
 func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
-	next := NewStream()
+	next := NewStream(s.producerChan)
 
 	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
 		fn(kvc)
@@ -83,6 +89,33 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	})
 
 	return &next
+}
+
+func (s *Stream) To(topic string, serializer serde.Serializer) {
+	log.Println("TO CREATED")
+	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
+
+		log.Println("sending message to channel")
+
+		sk := serializer.Serialize(kvc.Key)
+		sv := serializer.Serialize(kvc.Value)
+
+		msg := &kafka.Message{
+			TopicPartition: kafka.TopicPartition{
+				Topic:     &topic,
+				Partition: kafka.PartitionAny,
+			},
+			Value:         sv,
+			Key:           sk,
+			Timestamp:     time.Now(),
+			TimestampType: kafka.TimestampCreateTime,
+			Headers:       kvc.Headers(),
+		}
+		// produce
+		s.producerChan <- msg
+
+		return nil, kvc
+	})
 }
 
 //
@@ -105,8 +138,9 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 
 // repartition needs serde interaction
 
-func NewStream() Stream {
+func NewStream(producerChan chan<- *kafka.Message) Stream {
 	return Stream{
-		processFns: []streamProcessFn{},
+		processFns:   []streamProcessFn{},
+		producerChan: producerChan,
 	}
 }
