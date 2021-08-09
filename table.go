@@ -20,8 +20,16 @@ type Table struct {
 	// FIXME this should be only handled on input level - need to
 	cache            map[interface{}]interface{} // generics for key and value
 	initialTimestamp time.Time
-	commitInterval   time.Duration
 	// ---
+
+	stateStore  map[interface{}]interface{} // generics for key and value
+	commitCache map[interface{}]interface{} // for commit cache
+
+	skipCommitCache bool // for proces that skips commit cache
+
+	commitChan chan struct{}
+
+	ticker *time.Ticker
 
 	// FIXME how to implement suppress?
 }
@@ -29,9 +37,9 @@ type Table struct {
 // TODO this is only applicable for Suppress
 func (t *Table) shouldForward(kvc KeyValueContext) bool {
 	// TODO also return true if cache filled up
-	afterCommit := kvc.Timestamp().Sub(t.initialTimestamp) >= t.commitInterval
-	return afterCommit
-
+	//afterCommit := kvc.Timestamp().Sub(t.initialTimestamp) >= t.commitInterval
+	//return afterCommit
+	return true
 }
 
 func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) {
@@ -49,7 +57,7 @@ func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) 
 	}
 
 	if t.shouldForward(kvc) {
-		log.Println("diff=" + kvc.Timestamp().Sub(t.initialTimestamp).String() + " . commit interval=" + t.commitInterval.String())
+		//log.Println("diff=" + kvc.Timestamp().Sub(t.initialTimestamp).String() + " . commit interval=" + t.commitInterval.String())
 		// reset timestamp for input topic only
 		if t.topic != "" {
 			t.initialTimestamp = kvc.Timestamp()
@@ -68,9 +76,20 @@ func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) 
 }
 
 func (t *Table) process(kvc KeyValueContext) {
-	nextTables, nextKvcs := t.processHelper(kvc)
-	for i := range nextTables {
-		nextTables[i].process(nextKvcs[i])
+	if !t.skipCommitCache {
+		t.commitCache[kvc.Key] = kvc
+	} else {
+		nextTables, nextKvcs := t.processHelper(kvc)
+		for i := range nextTables {
+			nextTables[i].process(nextKvcs[i])
+		}
+	}
+}
+
+//TODO redo the process/downstream approach
+func (t *Table) continueDownstream() {
+	for i := range t.commitCache {
+		t.commitCache[i]
 	}
 }
 
@@ -82,16 +101,25 @@ func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
 	})
 	return &next
-
 }
 
 // TODO commit interval to be configurable
 func NewTable() Table {
 	return Table{
-		commitInterval: time.Second, // FIXME commit interval only to be used for initial?
 	}
 }
 
+func NewInputTable(topic string, deserializer serde.Deserializer) Table {
+	t := Table{
+		topic:           topic,
+		deserializer:    deserializer,
+		processFns:      []tableProcessFn{}, // default do nothing
+		skipCommitCache: false,
+		commitChan:      make(chan struct{}),
+	}
+
+	return t
+}
 
 // FIXME
 /**
@@ -104,4 +132,11 @@ cache need info:
 key, value, timestamp, timestamp pushed
 
 REMEMBER how to clear the time interval
- */
+*/
+
+// FIXME
+
+// decide to set chan or pass it like streams
+
+// TODO functions
+// filter, mapValues, joins, suppress, toStream

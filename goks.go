@@ -17,6 +17,7 @@ type Goks struct {
 	topology Topology
 
 	commitInterval time.Duration
+	commitTicker *time.Ticker
 }
 
 func New(t Topology) (Goks, error) {
@@ -88,6 +89,8 @@ func (g *Goks) Start() error {
 	deliveryChan := make(chan kafka.Event)
 	defer close(deliveryChan)
 
+	g.commitTicker = time.NewTicker(g.commitInterval)
+
 	go func() {
 		log.Println("running producer code")
 		for {
@@ -95,11 +98,26 @@ func (g *Goks) Start() error {
 			case msg := <-g.topology.producerChan:
 				log.Println("OEI")
 				g.producer.Produce(msg, nil)
-			default:
-
 			}
 		}
 	}()
+
+	go func() {
+		log.Println("running commit ticker")
+		for {
+			select {
+			case <-g.commitTicker.C:
+				log.Println("tick. push downstream for tables")
+				//for _, c := range g.topology.tableChans {
+				//	c <- struct{}{}
+				//}
+				for i := range g.topology.tables {
+					g.topology.tables[i].continueDownstream()
+				}
+			}
+		}
+	}()
+
 
 	for run {
 		select {
@@ -176,6 +194,7 @@ func (g *Goks) Start() error {
 func (g *Goks) Stop() {
 	log.Println("OEI STOP")
 	g.consumer.Close()
+	g.commitTicker.Stop()
 }
 
 func contextFrom(msg *kafka.Message) context.Context {

@@ -3,7 +3,6 @@ package goks
 import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/ronaldsuwandi/goks/serde"
-	"log"
 	"time"
 )
 
@@ -58,7 +57,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	return &next
 }
 
-//
+
 //// FIXME Map should do repartition, need serializer
 //func (s *Stream) Map(fn func(kvc KeyValueContext) KeyValueContext) *Stream {
 //	next := NewStream()
@@ -69,7 +68,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 //
 //	return &next
 //}
-//
+
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 	next := NewStream(s.producerChan)
 
@@ -92,11 +91,7 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 }
 
 func (s *Stream) To(topic string, serializer serde.Serializer) {
-	log.Println("TO CREATED")
 	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
-
-		log.Println("sending message to channel")
-
 		sk := serializer.Serialize(kvc.Key)
 		sv := serializer.Serialize(kvc.Value)
 

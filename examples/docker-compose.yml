@@ -40,47 +40,47 @@ services:
       KAFKA_JMX_PORT: 9999
       EXTRA_ARGS: "-Djava.rmi.server.hostname=localhost -Dcom.sun.management.jmxremote.rmi.port=9999"
 
-  schema-registry:
-    hostname: schema-registry
-    container_name: schema-registry
-    image: "confluentinc/cp-schema-registry:6.1.1-1-ubi8"
-    restart: always
-    networks:
-      - kafka-net
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
-      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
-
-  control-center:
-    image: confluentinc/cp-enterprise-control-center:6.1.1-1-ubi8
-    restart: always
-    hostname: control-center
-    container_name: control-center
-    depends_on:
-      - zookeeper
-      - kafka
-    networks:
-      - kafka-net
-    ports:
-      - "9021:9021"
-    environment:
-      CONTROL_CENTER_BOOTSTRAP_SERVERS: "kafka:9092"
-      CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      CONTROL_CENTER_REPLICATION_FACTOR: 1
-      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_REPLICATION: 1
-      CONTROL_CENTER_INTERNAL_TOPICS_REPLICATION: 1
-      CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
-      CONTROL_CENTER_METRICS_TOPIC_REPLICATION: 1
-      CONTROL_CENTER_STREAMS_NUM_STREAM_THREADS: 1
-      CONTROL_CENTER_STREAMS_CONSUMER_REQUEST_TIMEOUT_MS: "960032"
-      CONTROL_CENTER_CONNECT_CLUSTER: "connect:8083"
-      CONTROL_CENTER_KSQL_URL: "http://ksqldb-server:8088"
-      CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://localhost:8088"
-      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
-      CONTROL_CENTER_UI_AUTOUPDATE_ENABLE: "false"
+#  schema-registry:
+#    hostname: schema-registry
+#    container_name: schema-registry
+#    image: "confluentinc/cp-schema-registry:6.1.1-1-ubi8"
+#    restart: always
+#    networks:
+#      - kafka-net
+#    ports:
+#      - "8081:8081"
+#    environment:
+#      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+#      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+#      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
+#
+#  control-center:
+#    image: confluentinc/cp-enterprise-control-center:6.1.1-1-ubi8
+#    restart: always
+#    hostname: control-center
+#    container_name: control-center
+#    depends_on:
+#      - zookeeper
+#      - kafka
+#    networks:
+#      - kafka-net
+#    ports:
+#      - "9021:9021"
+#    environment:
+#      CONTROL_CENTER_BOOTSTRAP_SERVERS: "kafka:9092"
+#      CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
+#      CONTROL_CENTER_REPLICATION_FACTOR: 1
+#      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_REPLICATION: 1
+#      CONTROL_CENTER_INTERNAL_TOPICS_REPLICATION: 1
+#      CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
+#      CONTROL_CENTER_METRICS_TOPIC_REPLICATION: 1
+#      CONTROL_CENTER_STREAMS_NUM_STREAM_THREADS: 1
+#      CONTROL_CENTER_STREAMS_CONSUMER_REQUEST_TIMEOUT_MS: "960032"
+#      CONTROL_CENTER_CONNECT_CLUSTER: "connect:8083"
+#      CONTROL_CENTER_KSQL_URL: "http://ksqldb-server:8088"
+#      CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://localhost:8088"
+#      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+#      CONTROL_CENTER_UI_AUTOUPDATE_ENABLE: "false"
 
 networks:
   kafka-net:

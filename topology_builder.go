@@ -5,7 +5,6 @@ import (
 	"github.com/ronaldsuwandi/goks/serde"
 	"log"
 	"sync"
-	"time"
 )
 
 type TopologyBuilder struct {
@@ -16,6 +15,7 @@ type TopologyBuilder struct {
 
 	// config
 	producerChan chan *kafka.Message
+	tableChans []chan struct{}
 }
 
 func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
@@ -33,15 +33,9 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 
 func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
 	tb.mutex.Lock()
-	tb.tables = append(tb.tables, Table{
-		topic:          topic,
-		deserializer:   deserializer,
-		processFns:     []tableProcessFn{}, // default do nothing
-		input:          true,
-		commitInterval: time.Second, // FIXME this should be only on the input level?
-
-	})
+	tb.tables = append(tb.tables, NewInputTable(topic, deserializer))
 	result := &tb.tables[len(tb.tables)-1]
+	tb.tableChans = append(tb.tableChans, result.commitChan)
 	tb.mutex.Unlock()
 	return result
 }
@@ -51,10 +45,13 @@ func (tb *TopologyBuilder) Print() {
 }
 
 func (tb TopologyBuilder) Build() Topology {
+	// FIXME iterate through topology...
+
 	return Topology{
 		streams: tb.streams,
 		tables:  tb.tables,
 		producerChan: tb.producerChan,
+		tableChans: tb.tableChans,
 	}
 }
 
