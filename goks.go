@@ -112,7 +112,7 @@ func (g *Goks) Start() error {
 				//	c <- struct{}{}
 				//}
 				for i := range g.topology.tables {
-					g.topology.tables[i].continueDownstream()
+					g.topology.tables[i].flushCacheDownstream()
 				}
 			}
 		}

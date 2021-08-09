@@ -23,7 +23,7 @@ type Table struct {
 	// ---
 
 	stateStore  map[interface{}]interface{} // generics for key and value
-	commitCache map[interface{}]interface{} // for commit cache
+	commitCache map[interface{}]KeyValueContext // for commit cache
 
 	skipCommitCache bool // for proces that skips commit cache
 
@@ -77,20 +77,26 @@ func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) 
 
 func (t *Table) process(kvc KeyValueContext) {
 	if !t.skipCommitCache {
+		// FIXME race condition
 		t.commitCache[kvc.Key] = kvc
 	} else {
-		nextTables, nextKvcs := t.processHelper(kvc)
-		for i := range nextTables {
-			nextTables[i].process(nextKvcs[i])
-		}
+		t.downstream(kvc)
 	}
 }
 
-//TODO redo the process/downstream approach
-func (t *Table) continueDownstream() {
-	for i := range t.commitCache {
-		t.commitCache[i]
+func (t *Table) downstream(kvc KeyValueContext) {
+	nextTables, nextKvcs := t.processHelper(kvc)
+	for i := range nextTables {
+		nextTables[i].process(nextKvcs[i])
 	}
+}
+
+func (t *Table) flushCacheDownstream() {
+	// FIXME high risk of race condition
+	for i := range t.commitCache {
+		t.downstream(t.commitCache[i])
+	}
+	// TODO clear commitCache and move it to stateStore
 }
 
 func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
