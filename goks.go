@@ -48,6 +48,8 @@ func New(t Topology) (Goks, error) {
 		consumer: c,
 		producer: p,
 		topology: t,
+
+		commitInterval: 2 * time.Second, // FIXME use config
 	}
 
 	return g, err
@@ -102,29 +104,18 @@ func (g *Goks) Start() error {
 		}
 	}()
 
-	go func() {
-		log.Println("running commit ticker")
-		for {
-			select {
-			case <-g.commitTicker.C:
-				log.Println("tick. push downstream for tables")
-				//for _, c := range g.topology.tableChans {
-				//	c <- struct{}{}
-				//}
-				for i := range g.topology.tables {
-					g.topology.tables[i].flushCacheDownstream()
-				}
-			}
-		}
-	}()
-
-
 	for run {
 		select {
 		case sig := <-sigchan:
 			fmt.Printf("Terminating: %v\n", sig)
 			run = false
 			g.Stop()
+
+		case <-g.commitTicker.C:
+			log.Println("tick. push downstream for tables")
+			for i := range g.topology.tables {
+				g.topology.tables[i].flushCacheDownstream()
+			}
 
 		default:
 			ev := g.consumer.Poll(100)
@@ -133,11 +124,7 @@ func (g *Goks) Start() error {
 			}
 			switch e := ev.(type) {
 			case *kafka.Message:
-				fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
-				//if e.Headers != nil {
-				//	fmt.Printf("%% Headers: %v\n", e.Headers)
-				//}
-
+				//fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
 				for i, s := range g.topology.streams {
 					// deserialize here
 					dk := s.deserializer.Deserialize(e.Key)

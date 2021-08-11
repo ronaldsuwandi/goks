@@ -66,7 +66,7 @@ func main() {
 			ticker.Stop()
 			run = false
 		case <-ticker.C:
-			key := []byte("key")
+			key := []byte(fmt.Sprintf("key-%d",count%2))
 			value :=[]byte(fmt.Sprintf("%d", count))
 
 			log.Printf("publish message %s=%s\n",key,value)

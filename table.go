@@ -2,8 +2,6 @@ package goks
 
 import (
 	"github.com/ronaldsuwandi/goks/serde"
-	"log"
-	"time"
 )
 
 type tableProcessFn func(kvc KeyValueContext) (*Table, KeyValueContext)
@@ -17,86 +15,49 @@ type Table struct {
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
 
-	// FIXME this should be only handled on input level - need to
-	cache            map[interface{}]interface{} // generics for key and value
-	initialTimestamp time.Time
-	// ---
-
-	stateStore  map[interface{}]interface{} // generics for key and value
+	stateStore  map[interface{}]interface{}     // generics for key and value
 	commitCache map[interface{}]KeyValueContext // for commit cache
 
 	skipCommitCache bool // for proces that skips commit cache
 
-	commitChan chan struct{}
-
-	ticker *time.Ticker
-
 	// FIXME how to implement suppress?
-}
-
-// TODO this is only applicable for Suppress
-func (t *Table) shouldForward(kvc KeyValueContext) bool {
-	// TODO also return true if cache filled up
-	//afterCommit := kvc.Timestamp().Sub(t.initialTimestamp) >= t.commitInterval
-	//return afterCommit
-	return true
-}
-
-func (t *Table) processHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) {
-	var nextTables []Table
-	var nextKvcs []KeyValueContext
-
-	// ONLY CHECK THIS IF INPUT != ""
-	if t.topic != "" {
-		if t.initialTimestamp.IsZero() {
-			log.Println("iszero!")
-			t.initialTimestamp = kvc.Timestamp()
-		} else {
-			log.Println("notzero = " + t.initialTimestamp.String())
-		}
-	}
-
-	if t.shouldForward(kvc) {
-		//log.Println("diff=" + kvc.Timestamp().Sub(t.initialTimestamp).String() + " . commit interval=" + t.commitInterval.String())
-		// reset timestamp for input topic only
-		if t.topic != "" {
-			t.initialTimestamp = kvc.Timestamp()
-			log.Println("reset initial ts = " + t.initialTimestamp.String())
-		}
-
-		for _, fn := range t.processFns {
-			nextTable, nextKvc := fn(kvc)
-			if t != nil {
-				nextTables = append(nextTables, *nextTable)
-				nextKvcs = append(nextKvcs, nextKvc)
-			}
-		}
-	}
-	return nextTables, nextKvcs
 }
 
 func (t *Table) process(kvc KeyValueContext) {
 	if !t.skipCommitCache {
-		// FIXME race condition
 		t.commitCache[kvc.Key] = kvc
 	} else {
 		t.downstream(kvc)
 	}
 }
 
+func (t *Table) downstreamHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) {
+	var nextTables []Table
+	var nextKvcs []KeyValueContext
+	for _, fn := range t.processFns {
+		nextTable, nextKvc := fn(kvc)
+		if t != nil {
+			nextTables = append(nextTables, *nextTable)
+			nextKvcs = append(nextKvcs, nextKvc)
+		}
+	}
+	return nextTables, nextKvcs
+}
+
 func (t *Table) downstream(kvc KeyValueContext) {
-	nextTables, nextKvcs := t.processHelper(kvc)
+	nextTables, nextKvcs := t.downstreamHelper(kvc)
 	for i := range nextTables {
-		nextTables[i].process(nextKvcs[i])
+		nextTables[i].downstream(nextKvcs[i])
 	}
 }
 
 func (t *Table) flushCacheDownstream() {
-	// FIXME high risk of race condition
-	for i := range t.commitCache {
-		t.downstream(t.commitCache[i])
+	for i, kvc := range t.commitCache {
+		t.downstream(kvc)
+		// add to state store and remove commit cache
+		t.stateStore[i] = kvc
+		delete(t.commitCache, i)
 	}
-	// TODO clear commitCache and move it to stateStore
 }
 
 func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
@@ -112,6 +73,7 @@ func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 // TODO commit interval to be configurable
 func NewTable() Table {
 	return Table{
+		skipCommitCache: true,
 	}
 }
 
@@ -121,7 +83,8 @@ func NewInputTable(topic string, deserializer serde.Deserializer) Table {
 		deserializer:    deserializer,
 		processFns:      []tableProcessFn{}, // default do nothing
 		skipCommitCache: false,
-		commitChan:      make(chan struct{}),
+		stateStore:      make(map[interface{}]interface{}),
+		commitCache:     make(map[interface{}]KeyValueContext),
 	}
 
 	return t
@@ -139,10 +102,6 @@ key, value, timestamp, timestamp pushed
 
 REMEMBER how to clear the time interval
 */
-
-// FIXME
-
-// decide to set chan or pass it like streams
 
 // TODO functions
 // filter, mapValues, joins, suppress, toStream

@@ -139,3 +139,7 @@ func NewStream(producerChan chan<- *kafka.Message) Stream {
 		producerChan: producerChan,
 	}
 }
+
+// TODO
+// stream to Table - how will goks figure out if the Table is an input table from the topology builder
+// input table need to work with ticker in the main goks start method

@@ -15,7 +15,6 @@ type TopologyBuilder struct {
 
 	// config
 	producerChan chan *kafka.Message
-	tableChans []chan struct{}
 }
 
 func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
@@ -35,7 +34,6 @@ func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) 
 	tb.mutex.Lock()
 	tb.tables = append(tb.tables, NewInputTable(topic, deserializer))
 	result := &tb.tables[len(tb.tables)-1]
-	tb.tableChans = append(tb.tableChans, result.commitChan)
 	tb.mutex.Unlock()
 	return result
 }
@@ -51,7 +49,6 @@ func (tb TopologyBuilder) Build() Topology {
 		streams: tb.streams,
 		tables:  tb.tables,
 		producerChan: tb.producerChan,
-		tableChans: tb.tableChans,
 	}
 }
 
