@@ -22,7 +22,7 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 	tb.streams = append(tb.streams, Stream{
 		topic:        topic,
 		deserializer: deserializer,
-		processFns:   []streamProcessFn{}, // default do nothing
+		processFns:   []StreamProcessorFn{}, // default do nothing
 		producerChan: tb.producerChan,
 	})
 	result := &tb.streams[len(tb.streams)-1]
@@ -46,15 +46,15 @@ func (tb TopologyBuilder) Build() Topology {
 	// FIXME iterate through topology...
 
 	return Topology{
-		streams: tb.streams,
-		tables:  tb.tables,
+		streams:      tb.streams,
+		tables:       tb.tables,
 		producerChan: tb.producerChan,
 	}
 }
 
 func noop(_ KeyValueContext) {}
 
-func NewTopologyBuilder( /*config*/) TopologyBuilder {
+func NewTopologyBuilder( /*config*/ ) TopologyBuilder {
 	return TopologyBuilder{
 		mutex:        &sync.Mutex{},
 		producerChan: make(chan *kafka.Message),

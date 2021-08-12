@@ -6,12 +6,10 @@ import (
 	"time"
 )
 
-type streamProcessFn func(kvc KeyValueContext) (*Stream, KeyValueContext)
-
 type Stream struct {
 	topic      string
 	name       string
-	processFns []streamProcessFn
+	processFns []StreamProcessorFn
 
 	// TODO split key and value serializer
 	serializer   serde.Serializer
@@ -20,14 +18,14 @@ type Stream struct {
 	producerChan chan<- *kafka.Message
 }
 
-func (s *Stream) processHelper(kvc KeyValueContext) ([]Stream, []KeyValueContext) {
-	var nextStreams []Stream
+func (s *Stream) processHelper(kvc KeyValueContext) ([]StreamProcessor, []KeyValueContext) {
+	var nextStreams []StreamProcessor
 	var nextKvcs []KeyValueContext
 
 	for _, fn := range s.processFns {
 		nextStream, nextKvc := fn(kvc)
 		if nextStream != nil {
-			nextStreams = append(nextStreams, *nextStream)
+			nextStreams = append(nextStreams, nextStream)
 			nextKvcs = append(nextKvcs, nextKvc)
 		}
 	}
@@ -45,7 +43,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	next := NewStream(s.producerChan)
 
 	// deserialize
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
+	s.processFns = append(s.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
 		if fn(kvc) {
 			return &next, kvc
 		} else {
@@ -56,7 +54,6 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	//serialize ?
 	return &next
 }
-
 
 //// FIXME Map should do repartition, need serializer
 //func (s *Stream) Map(fn func(kvc KeyValueContext) KeyValueContext) *Stream {
@@ -72,7 +69,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 	next := NewStream(s.producerChan)
 
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
+	s.processFns = append(s.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
 		vc := fn(kvc)
 		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
 	})
@@ -82,7 +79,7 @@ func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	next := NewStream(s.producerChan)
 
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
+	s.processFns = append(s.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
 		fn(kvc)
 		return &next, kvc
 	})
@@ -91,7 +88,7 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 }
 
 func (s *Stream) To(topic string, serializer serde.Serializer) {
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (*Stream, KeyValueContext) {
+	s.processFns = append(s.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
 		sk := serializer.Serialize(kvc.Key)
 		sv := serializer.Serialize(kvc.Value)
 
@@ -111,6 +108,10 @@ func (s *Stream) To(topic string, serializer serde.Serializer) {
 
 		return nil, kvc
 	})
+}
+
+func (s *Stream) ID() string {
+	return "stream"
 }
 
 //
@@ -135,7 +136,7 @@ func (s *Stream) To(topic string, serializer serde.Serializer) {
 
 func NewStream(producerChan chan<- *kafka.Message) Stream {
 	return Stream{
-		processFns:   []streamProcessFn{},
+		processFns:   []StreamProcessorFn{},
 		producerChan: producerChan,
 	}
 }
@@ -143,3 +144,8 @@ func NewStream(producerChan chan<- *kafka.Message) Stream {
 // TODO
 // stream to Table - how will goks figure out if the Table is an input table from the topology builder
 // input table need to work with ticker in the main goks start method
+
+// TODO
+// identifier set on topology builder
+// identify cacheable table, cacheable tables should somehow be
+// found on goks main thread so that it can force cache flush on ticker

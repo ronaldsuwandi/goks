@@ -4,12 +4,10 @@ import (
 	"github.com/ronaldsuwandi/goks/serde"
 )
 
-type tableProcessFn func(kvc KeyValueContext) (*Table, KeyValueContext)
-
 type Table struct {
 	topic      string
 	name       string
-	processFns []tableProcessFn
+	processFns []StreamProcessorFn
 	input      bool // flag to indicate if this Table is an input (from topic or from stream)
 
 	serializer   serde.Serializer
@@ -31,13 +29,13 @@ func (t *Table) process(kvc KeyValueContext) {
 	}
 }
 
-func (t *Table) downstreamHelper(kvc KeyValueContext) ([]Table, []KeyValueContext) {
-	var nextTables []Table
+func (t *Table) downstreamHelper(kvc KeyValueContext) ([]StreamProcessor, []KeyValueContext) {
+	var nextTables []StreamProcessor
 	var nextKvcs []KeyValueContext
 	for _, fn := range t.processFns {
 		nextTable, nextKvc := fn(kvc)
 		if t != nil {
-			nextTables = append(nextTables, *nextTable)
+			nextTables = append(nextTables, nextTable)
 			nextKvcs = append(nextKvcs, nextKvc)
 		}
 	}
@@ -47,7 +45,7 @@ func (t *Table) downstreamHelper(kvc KeyValueContext) ([]Table, []KeyValueContex
 func (t *Table) downstream(kvc KeyValueContext) {
 	nextTables, nextKvcs := t.downstreamHelper(kvc)
 	for i := range nextTables {
-		nextTables[i].downstream(nextKvcs[i])
+		nextTables[i].process(nextKvcs[i])
 	}
 }
 
@@ -63,7 +61,7 @@ func (t *Table) flushCacheDownstream() {
 func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 	next := NewTable()
 
-	t.processFns = append(t.processFns, func(kvc KeyValueContext) (*Table, KeyValueContext) {
+	t.processFns = append(t.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
 		vc := fn(kvc)
 		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
 	})
@@ -81,13 +79,17 @@ func NewInputTable(topic string, deserializer serde.Deserializer) Table {
 	t := Table{
 		topic:           topic,
 		deserializer:    deserializer,
-		processFns:      []tableProcessFn{}, // default do nothing
+		processFns:      []StreamProcessorFn{}, // default do nothing
 		skipCommitCache: false,
 		stateStore:      make(map[interface{}]interface{}),
 		commitCache:     make(map[interface{}]KeyValueContext),
 	}
 
 	return t
+}
+
+func (t *Table) ID() string {
+	return "table"
 }
 
 // FIXME

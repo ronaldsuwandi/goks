@@ -8,36 +8,36 @@ import (
 
 func main() {
 	tb := goks.NewTopologyBuilder()
-	//
+
 	//st := tb.Stream("input", serde.StringDeserializer{}).
 	//	Filter(func(kvc goks.KeyValueContext) bool {
 	//		return true
 	//	})
 	//
 	//st.
-	////	//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
-	////	//	k := kvc.Key.(string)
-	////	//	v := kvc.Value.(string) + "-mapped"
-	////	//
-	////	//	return goks.KeyValueContext{
-	////	//		Key: k,
-	////	//		ValueContext: goks.ValueContext{
-	////	//			Value: v,
-	////	//			Ctx:   kvc.Ctx,
-	////	//		},
-	////	//	}
-	////	//}).
+	//	//	//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
+	//	//	//	k := kvc.Key.(string)
+	//	//	//	v := kvc.Value.(string) + "-mapped"
+	//	//	//
+	//	//	//	return goks.KeyValueContext{
+	//	//	//		Key: k,
+	//	//	//		ValueContext: goks.ValueContext{
+	//	//	//			Value: v,
+	//	//	//			Ctx:   kvc.Ctx,
+	//	//	//		},
+	//	//	//	}
+	//	//	//}).
 	//	MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
 	//		return goks.ValueContext{
 	//			Value: kvc.Value.(string) + "MAP1",
-	//			Ctx: kvc.Ctx, // TODO maybe get rid of ctx?
+	//			Ctx:   kvc.Ctx, // TODO maybe get rid of ctx?
 	//		}
 	//	}).
 	//	Peek(func(kvc goks.KeyValueContext) {
 	//		log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
 	//	}).
 	//	To("output", serde.StringSerializer{})
-	//
+
 	////
 	////st.
 	////	//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
@@ -95,7 +95,7 @@ func main() {
 	////		log.Printf("peek [%d] -> %v\n", k, msg)
 	////	})
 	////}
-	////
+
 	table := tb.Table("input", serde.StringDeserializer{})
 	table.MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
 		log.Println("KVC FROM TABLE" + kvc.Key.(string) + ": " + kvc.Value.(string))
