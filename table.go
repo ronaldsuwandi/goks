@@ -5,10 +5,15 @@ import (
 )
 
 type Table struct {
-	topic      string
-	name       string
-	processFns []StreamProcessorFn
-	input      bool // flag to indicate if this Table is an input (from topic or from stream)
+	id              string
+	internalCounter int
+
+	topic string
+	name  string
+
+	downstreamNodes []Node
+	processFns      []NodeProcessorFn
+	input           bool // flag to indicate if this Table is an input (from topic or from stream)
 
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
@@ -16,21 +21,21 @@ type Table struct {
 	stateStore  map[interface{}]interface{}     // generics for key and value
 	commitCache map[interface{}]KeyValueContext // for commit cache
 
-	skipCommitCache bool // for proces that skips commit cache
+	cached bool
 
 	// FIXME how to implement suppress?
 }
 
 func (t *Table) process(kvc KeyValueContext) {
-	if !t.skipCommitCache {
+	if !t.cached {
 		t.commitCache[kvc.Key] = kvc
 	} else {
 		t.downstream(kvc)
 	}
 }
 
-func (t *Table) downstreamHelper(kvc KeyValueContext) ([]StreamProcessor, []KeyValueContext) {
-	var nextTables []StreamProcessor
+func (t *Table) downstreamHelper(kvc KeyValueContext) ([]Node, []KeyValueContext) {
+	var nextTables []Node
 	var nextKvcs []KeyValueContext
 	for _, fn := range t.processFns {
 		nextTable, nextKvc := fn(kvc)
@@ -61,7 +66,11 @@ func (t *Table) flushCacheDownstream() {
 func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 	next := NewTable()
 
-	t.processFns = append(t.processFns, func(kvc KeyValueContext) (StreamProcessor, KeyValueContext) {
+	next.internalCounter = t.internalCounter+1
+	next.id = generateID("TABLE-MAPVALUES", next.internalCounter)
+
+	t.downstreamNodes = append(t.downstreamNodes, &next)
+	t.processFns = append(t.processFns, func(kvc KeyValueContext) (Node, KeyValueContext) {
 		vc := fn(kvc)
 		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
 	})
@@ -71,25 +80,35 @@ func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 // TODO commit interval to be configurable
 func NewTable() Table {
 	return Table{
-		skipCommitCache: true,
+		processFns:      []NodeProcessorFn{}, // default do nothing
+		downstreamNodes: []Node{},
+		cached:          true,
 	}
 }
 
-func NewInputTable(topic string, deserializer serde.Deserializer) Table {
+func NewInputTable(topic string, deserializer serde.Deserializer, counter int) Table {
 	t := Table{
 		topic:           topic,
 		deserializer:    deserializer,
-		processFns:      []StreamProcessorFn{}, // default do nothing
-		skipCommitCache: false,
+		processFns:      []NodeProcessorFn{}, // default do nothing
+		downstreamNodes: []Node{},
+		cached:          false,
 		stateStore:      make(map[interface{}]interface{}),
 		commitCache:     make(map[interface{}]KeyValueContext),
+		internalCounter: counter,
 	}
+
+	t.id = generateID("TABLE", t.internalCounter)
 
 	return t
 }
 
 func (t *Table) ID() string {
-	return "table"
+	return t.id
+}
+
+func (t *Table) DownstreamNodes() []Node {
+	return t.downstreamNodes
 }
 
 // FIXME

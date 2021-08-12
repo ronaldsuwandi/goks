@@ -4,37 +4,37 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/ronaldsuwandi/goks/serde"
 	"log"
-	"sync"
 )
 
 type TopologyBuilder struct {
-	mutex   *sync.Mutex
 	streams []Stream
 	tables  []Table
 	//global ktables
 
 	// config
 	producerChan chan *kafka.Message
+
+	counter int
 }
 
 func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
-	tb.mutex.Lock()
 	tb.streams = append(tb.streams, Stream{
 		topic:        topic,
 		deserializer: deserializer,
-		processFns:   []StreamProcessorFn{}, // default do nothing
+		processFns:   []NodeProcessorFn{}, // default do nothing
 		producerChan: tb.producerChan,
+
+		internalCounter: tb.counter,
 	})
+	tb.counter++
 	result := &tb.streams[len(tb.streams)-1]
-	tb.mutex.Unlock()
 	return result
 }
 
 func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
-	tb.mutex.Lock()
-	tb.tables = append(tb.tables, NewInputTable(topic, deserializer))
+	tb.tables = append(tb.tables, NewInputTable(topic, deserializer, tb.counter))
+	tb.counter++
 	result := &tb.tables[len(tb.tables)-1]
-	tb.mutex.Unlock()
 	return result
 }
 
@@ -56,7 +56,6 @@ func noop(_ KeyValueContext) {}
 
 func NewTopologyBuilder( /*config*/ ) TopologyBuilder {
 	return TopologyBuilder{
-		mutex:        &sync.Mutex{},
 		producerChan: make(chan *kafka.Message),
 		// config: config,
 	}
