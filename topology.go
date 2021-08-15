@@ -6,7 +6,7 @@ import (
 
 type Topology struct {
 	streams []Stream
-	tables  []Table
+	//tables  []Table //FIXME fix table
 	//global ktables
 	producerChan chan *kafka.Message
 

@@ -10,9 +10,10 @@ type Stream struct {
 	id              string
 	internalCounter int
 
-	topic           string
-	name            string
-	processFns      []NodeProcessorFn
+	topic string
+	name  string
+
+	processFn       NodeProcessorFn
 	downstreamNodes []Node
 
 	// TODO split key and value serializer
@@ -22,41 +23,25 @@ type Stream struct {
 	producerChan chan<- *kafka.Message
 }
 
-func (s *Stream) processHelper(kvc KeyValueContext) ([]Node, []KeyValueContext) {
-	var nextStreams []Node
-	var nextKvcs []KeyValueContext
-
-	for _, fn := range s.processFns {
-		nextStream, nextKvc := fn(kvc)
-		if nextStream != nil {
-			nextStreams = append(nextStreams, nextStream)
-			nextKvcs = append(nextKvcs, nextKvc)
-		}
-	}
-	return nextStreams, nextKvcs
-}
-
 func (s *Stream) process(kvc KeyValueContext) {
-	nextStreams, nextKvcs := s.processHelper(kvc)
-	for i := range nextStreams {
-		nextStreams[i].process(nextKvcs[i])
+	//deserialize + serialize?
+	proceedDownstream, nextKvc := s.processFn(kvc)
+
+	if proceedDownstream {
+		for i := range s.downstreamNodes {
+			s.downstreamNodes[i].process(nextKvc)
+		}
 	}
 }
 
 func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	next := NewStream(s.producerChan)
 
-	s.downstreamNodes = append(s.downstreamNodes, &next)
-	// deserialize
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (Node, KeyValueContext) {
-		if fn(kvc) {
-			return &next, kvc
-		} else {
-			return nil, kvc
-		}
-	})
+	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
+		return fn(kvc), kvc
+	}
 
-	//serialize ?
+	s.downstreamNodes = append(s.downstreamNodes, &next)
 	return &next
 }
 
@@ -74,27 +59,31 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 	next := NewStream(s.producerChan)
 
-	s.downstreamNodes = append(s.downstreamNodes, &next)
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (Node, KeyValueContext) {
+	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
 		vc := fn(kvc)
-		return &next, KeyValueContext{Key: kvc.Key, ValueContext: vc}
-	})
+		return true, KeyValueContext{Key: kvc.Key, ValueContext: vc}
+	}
+
+	s.downstreamNodes = append(s.downstreamNodes, &next)
 	return &next
 }
 
 func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	next := NewStream(s.producerChan)
 
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (Node, KeyValueContext) {
+	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
 		fn(kvc)
-		return &next, kvc
-	})
+		return true, kvc
+	}
 
+	s.downstreamNodes = append(s.downstreamNodes, &next)
 	return &next
 }
 
 func (s *Stream) To(topic string, serializer serde.Serializer) {
-	s.processFns = append(s.processFns, func(kvc KeyValueContext) (Node, KeyValueContext) {
+	next := NewStream(s.producerChan)
+
+	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
 		sk := serializer.Serialize(kvc.Key)
 		sv := serializer.Serialize(kvc.Value)
 
@@ -112,8 +101,10 @@ func (s *Stream) To(topic string, serializer serde.Serializer) {
 		// produce
 		s.producerChan <- msg
 
-		return nil, kvc
-	})
+		return false, kvc
+	}
+
+	s.downstreamNodes = append(s.downstreamNodes, &next)
 }
 
 func (s *Stream) ID() string {
@@ -146,7 +137,6 @@ func (s *Stream) DownstreamNodes() []Node {
 
 func NewStream(producerChan chan<- *kafka.Message) Stream {
 	return Stream{
-		processFns:      []NodeProcessorFn{},
 		producerChan:    producerChan,
 		downstreamNodes: []Node{},
 	}

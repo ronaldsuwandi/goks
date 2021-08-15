@@ -8,7 +8,7 @@ import (
 
 type TopologyBuilder struct {
 	streams []Stream
-	tables  []Table
+	//tables  []Table //FIXME table
 	//global ktables
 
 	// config
@@ -21,7 +21,11 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 	tb.streams = append(tb.streams, Stream{
 		topic:        topic,
 		deserializer: deserializer,
-		processFns:   []NodeProcessorFn{}, // default do nothing
+
+		processFn: func(kvc KeyValueContext) (bool, KeyValueContext) {
+			return true, kvc
+		},
+
 		producerChan: tb.producerChan,
 
 		internalCounter: tb.counter,
@@ -31,12 +35,13 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 	return result
 }
 
-func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
-	tb.tables = append(tb.tables, NewInputTable(topic, deserializer, tb.counter))
-	tb.counter++
-	result := &tb.tables[len(tb.tables)-1]
-	return result
-}
+//FIXME fix table
+//func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
+//	tb.tables = append(tb.tables, NewInputTable(topic, deserializer, tb.counter))
+//	tb.counter++
+//	result := &tb.tables[len(tb.tables)-1]
+//	return result
+//}
 
 func (tb *TopologyBuilder) Print() {
 	log.Printf("tb addr: %+v\n", tb.streams[0])
@@ -46,8 +51,8 @@ func (tb TopologyBuilder) Build() Topology {
 	// FIXME iterate through topology...
 
 	return Topology{
-		streams:      tb.streams,
-		tables:       tb.tables,
+		streams: tb.streams,
+		//tables:       tb.tables, //FIXME fix table
 		producerChan: tb.producerChan,
 	}
 }

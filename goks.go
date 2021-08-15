@@ -17,7 +17,7 @@ type Goks struct {
 	topology Topology
 
 	commitInterval time.Duration
-	commitTicker *time.Ticker
+	commitTicker   *time.Ticker
 }
 
 func New(t Topology) (Goks, error) {
@@ -75,9 +75,10 @@ func (g *Goks) Start() error {
 		inputTopics = append(inputTopics, s.topic)
 	}
 
-	for _, t := range g.topology.tables {
-		inputTopics = append(inputTopics, t.topic)
-	}
+	//FIXME fix table
+	//for _, t := range g.topology.tables {
+	//	inputTopics = append(inputTopics, t.topic)
+	//}
 
 	// TODO deal with rebalance
 	err := g.consumer.SubscribeTopics(inputTopics, nil)
@@ -112,10 +113,11 @@ func (g *Goks) Start() error {
 			g.Stop()
 
 		case <-g.commitTicker.C:
-			log.Println("tick. push downstream for tables")
-			for i := range g.topology.tables {
-				g.topology.tables[i].flushCacheDownstream()
-			}
+			//log.Println("tick. push downstream for tables")
+			//FIXME fix table
+			//for i := range g.topology.tables {
+			//	g.topology.tables[i].flushCacheDownstream()
+			//}
 
 		default:
 			ev := g.consumer.Poll(100)
@@ -141,21 +143,22 @@ func (g *Goks) Start() error {
 					g.topology.streams[i].process(kvc)
 				}
 
-				for i, t := range g.topology.tables {
-					// deserialize here
-					dk := t.deserializer.Deserialize(e.Key)
-					dv := t.deserializer.Deserialize(e.Value)
-
-					kvc := KeyValueContext{
-						Key: dk,
-						ValueContext: ValueContext{
-							Value: dv,
-							Ctx:   contextFrom(e),
-						},
-					}
-
-					g.topology.tables[i].process(kvc)
-				}
+				//FIXME fix table
+				//for i, t := range g.topology.tables {
+				//	// deserialize here
+				//	dk := t.deserializer.Deserialize(e.Key)
+				//	dv := t.deserializer.Deserialize(e.Value)
+				//
+				//	kvc := KeyValueContext{
+				//		Key: dk,
+				//		ValueContext: ValueContext{
+				//			Value: dv,
+				//			Ctx:   contextFrom(e),
+				//		},
+				//	}
+				//
+				//	g.topology.tables[i].process(kvc)
+				//}
 
 				//e.Timestamp
 				//TODO commit.interval.ms cache
