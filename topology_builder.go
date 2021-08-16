@@ -46,8 +46,32 @@ func (tb *TopologyBuilder) Print() {
 	log.Printf("tb addr: %+v\n", tb.streams[0])
 }
 
+func findTables(n Node, result []Node) {
+	for _, d := range n.DownstreamNodes() {
+		t, ok := d.(*Table)
+		if ok && t.cached {
+			result = append(result, t)
+		}
+
+		findTables(d, result)
+	}
+
+}
+
 func (tb TopologyBuilder) Build() Topology {
 	// FIXME iterate through topology...
+	//[]
+	//tables := tb.tables
+	//tablesFromStream
+	//tablesFromTablee (table->stream->CACHEDtable)
+	//for _, t := range tb.streams
+
+	// TODO iterate through input streams, find if there's Table() method
+
+
+	// FIXME validate topology
+
+
 
 	return Topology{
 		streams:      tb.streams,

@@ -80,6 +80,14 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	return &next
 }
 
+func (s *Stream) Table(cached bool) *Table {
+	next := NewTable()
+	next.id = generateID("STREAM-TO-TABLE", s.internalCounter)
+	next.cached = cached
+	s.downstreamNodes = append(s.downstreamNodes, &next)
+	return &next
+}
+
 func (s *Stream) To(topic string, serializer serde.Serializer) {
 	next := NewStream(s.producerChan)
 
