@@ -25,9 +25,9 @@ type Stream struct {
 
 func (s *Stream) process(kvc KeyValueContext) {
 	//deserialize + serialize?
-	proceedDownstream, nextKvc := s.processFn(kvc)
+	nextKvc, continueDownstream := s.processFn(kvc)
 
-	if proceedDownstream {
+	if continueDownstream {
 		for i := range s.downstreamNodes {
 			s.downstreamNodes[i].process(nextKvc)
 		}
@@ -37,8 +37,8 @@ func (s *Stream) process(kvc KeyValueContext) {
 func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
-		return fn(kvc), kvc
+	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+		return kvc, fn(kvc)
 	}
 
 	s.downstreamNodes = append(s.downstreamNodes, &next)
@@ -59,9 +59,9 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
+	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
 		vc := fn(kvc)
-		return true, KeyValueContext{Key: kvc.Key, ValueContext: vc}
+		return KeyValueContext{Key: kvc.Key, ValueContext: vc}, true
 	}
 
 	s.downstreamNodes = append(s.downstreamNodes, &next)
@@ -71,9 +71,9 @@ func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
+	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
 		fn(kvc)
-		return true, kvc
+		return kvc, true
 	}
 
 	s.downstreamNodes = append(s.downstreamNodes, &next)
@@ -83,7 +83,7 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 func (s *Stream) To(topic string, serializer serde.Serializer) {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (bool, KeyValueContext) {
+	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
 		sk := serializer.Serialize(kvc.Key)
 		sv := serializer.Serialize(kvc.Value)
 
@@ -101,7 +101,7 @@ func (s *Stream) To(topic string, serializer serde.Serializer) {
 		// produce
 		s.producerChan <- msg
 
-		return false, kvc
+		return kvc, false
 	}
 
 	s.downstreamNodes = append(s.downstreamNodes, &next)
@@ -137,6 +137,7 @@ func (s *Stream) DownstreamNodes() []Node {
 
 func NewStream(producerChan chan<- *kafka.Message) Stream {
 	return Stream{
+		processFn:       NoopProcessorFn(false),
 		producerChan:    producerChan,
 		downstreamNodes: []Node{},
 	}

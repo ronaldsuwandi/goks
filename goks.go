@@ -69,16 +69,15 @@ func (g *Goks) Start() error {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	inputTopics := []string{}
+	var inputTopics []string
 
 	for _, s := range g.topology.streams {
 		inputTopics = append(inputTopics, s.topic)
 	}
 
-	//FIXME fix table
-	//for _, t := range g.topology.tables {
-	//	inputTopics = append(inputTopics, t.topic)
-	//}
+	for _, t := range g.topology.tables {
+		inputTopics = append(inputTopics, t.topic)
+	}
 
 	// TODO deal with rebalance
 	err := g.consumer.SubscribeTopics(inputTopics, nil)
@@ -113,11 +112,10 @@ func (g *Goks) Start() error {
 			g.Stop()
 
 		case <-g.commitTicker.C:
-			//log.Println("tick. push downstream for tables")
-			//FIXME fix table
-			//for i := range g.topology.tables {
-			//	g.topology.tables[i].flushCacheDownstream()
-			//}
+			log.Println("tick. push downstream for tables")
+			for i := range g.topology.tables {
+				g.topology.tables[i].flushCacheDownstream()
+			}
 
 		default:
 			ev := g.consumer.Poll(100)
@@ -143,31 +141,26 @@ func (g *Goks) Start() error {
 					g.topology.streams[i].process(kvc)
 				}
 
-				//FIXME fix table
-				//for i, t := range g.topology.tables {
-				//	// deserialize here
-				//	dk := t.deserializer.Deserialize(e.Key)
-				//	dv := t.deserializer.Deserialize(e.Value)
-				//
-				//	kvc := KeyValueContext{
-				//		Key: dk,
-				//		ValueContext: ValueContext{
-				//			Value: dv,
-				//			Ctx:   contextFrom(e),
-				//		},
-				//	}
-				//
-				//	g.topology.tables[i].process(kvc)
-				//}
+				for i, t := range g.topology.tables {
+					// deserialize here
+					dk := t.deserializer.Deserialize(e.Key)
+					dv := t.deserializer.Deserialize(e.Value)
 
-				//e.Timestamp
+					kvc := KeyValueContext{
+						Key: dk,
+						ValueContext: ValueContext{
+							Value: dv,
+							Ctx:   contextFrom(e),
+						},
+					}
+
+					g.topology.tables[i].process(kvc)
+				}
+
 				//TODO commit.interval.ms cache
-				//g.topology.pipeTables(e)
 			case kafka.Error:
-				// Errors should generally be considered
-				// informational, the client will try to
-				// automatically recover.
-				// But in this example we choose to terminate
+				// Errors should generally be considered informational, the client will try to
+				// automatically recover. But in this example we choose to terminate
 				// the application if all brokers are down.
 				fmt.Fprintf(os.Stderr, "%% Error: %v: %v\n", e.Code(), e)
 				if e.Code() == kafka.ErrAllBrokersDown {
@@ -182,7 +175,7 @@ func (g *Goks) Start() error {
 }
 
 func (g *Goks) Stop() {
-	log.Println("OEI STOP")
+	log.Println("Stopping goks")
 	g.consumer.Close()
 	g.commitTicker.Stop()
 }
