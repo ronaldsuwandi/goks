@@ -84,6 +84,10 @@ func (s *Stream) Table(cached bool) *Table {
 	next := NewTable()
 	next.id = generateID("STREAM-TO-TABLE", s.internalCounter)
 	next.cached = cached
+	if cached {
+		next.commitCache = make(map[interface{}]KeyValueContext)
+		next.stateStore = make(map[interface{}]interface{}) // TODO separate cache and logging
+	}
 	s.downstreamNodes = append(s.downstreamNodes, &next)
 	return &next
 }
@@ -119,8 +123,20 @@ func (s *Stream) ID() string {
 	return "stream"
 }
 
+func (s *Stream) Topic() string {
+	return s.topic
+}
+
 func (s *Stream) DownstreamNodes() []Node {
 	return s.downstreamNodes
+}
+
+func (s *Stream) Deserializer() serde.Deserializer {
+	return s.deserializer
+}
+
+func (s *Stream) Serializer() serde.Serializer {
+	return s.serializer
 }
 
 //

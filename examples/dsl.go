@@ -9,32 +9,40 @@ import (
 func main() {
 	tb := goks.NewTopologyBuilder()
 
-	//st := tb.Stream("input", serde.StringDeserializer{}).
-	//	Filter(func(kvc goks.KeyValueContext) bool {
-	//		return true
-	//	})
-	//st.
-	//	//	//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
-	//	//	//	k := kvc.Key.(string)
-	//	//	//	v := kvc.Value.(string) + "-mapped"
-	//	//	//
-	//	//	//	return goks.KeyValueContext{
-	//	//	//		Key: k,
-	//	//	//		ValueContext: goks.ValueContext{
-	//	//	//			Value: v,
-	//	//	//			Ctx:   kvc.Ctx,
-	//	//	//		},
-	//	//	//	}
-	//	//	//}).
-	//	MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
-	//		return goks.ValueContext{
-	//			Value: kvc.Value.(string) + "MAP1",
-	//			Ctx:   kvc.Ctx, // TODO maybe get rid of ctx?
-	//		}
-	//	}).
-	//	Peek(func(kvc goks.KeyValueContext) {
-	//		log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
-	//	}).
+	st := tb.Stream("input", serde.StringDeserializer{}).
+		Filter(func(kvc goks.KeyValueContext) bool {
+			return true
+		})
+	st.
+		//	//	//Map(func(kvc goks.KeyValueContext) goks.KeyValueContext {
+		//	//	//	k := kvc.Key.(string)
+		//	//	//	v := kvc.Value.(string) + "-mapped"
+		//	//	//
+		//	//	//	return goks.KeyValueContext{
+		//	//	//		Key: k,
+		//	//	//		ValueContext: goks.ValueContext{
+		//	//	//			Value: v,
+		//	//	//			Ctx:   kvc.Ctx,
+		//	//	//		},
+		//	//	//	}
+		//	//	//}).
+		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+			return goks.ValueContext{
+				Value: kvc.Value.(string) + "MAP1",
+				Ctx:   kvc.Ctx, // TODO maybe get rid of ctx?
+			}
+		}).
+		Peek(func(kvc goks.KeyValueContext) {
+			log.Printf("!!!!k=%v\tv=%v\n", kvc.Key, kvc.Value)
+		}).
+		Table(true).
+		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+			log.Println("MAP FROM TABLE!")
+			return goks.ValueContext{
+				Value: kvc.Value.(string) + "WOAH TABLE",
+				Ctx:   kvc.Ctx,
+			}
+		})
 	//	To("output", serde.StringSerializer{})
 
 	////st.
@@ -94,14 +102,14 @@ func main() {
 	////	})
 	////}
 
-	table := tb.Table("input", serde.StringDeserializer{})
-	table.MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
-		log.Println("KVC FROM TABLE" + kvc.Key.(string) + ": " + kvc.Value.(string))
-		return goks.ValueContext{
-			Value: kvc.Value.(string) + "MAP-FROM-TABLE",
-			Ctx:   kvc.Ctx, // must include
-		}
-	})
+	//table := tb.Table("input", serde.StringDeserializer{})
+	//table.MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+	//	log.Println("KVC FROM TABLE" + kvc.Key.(string) + ": " + kvc.Value.(string))
+	//	return goks.ValueContext{
+	//		Value: kvc.Value.(string) + "MAP-FROM-TABLE",
+	//		Ctx:   kvc.Ctx, // must include
+	//	}
+	//})
 
 	topology := tb.Build()
 	g, err := goks.New(topology)

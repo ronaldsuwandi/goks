@@ -5,8 +5,10 @@ import (
 )
 
 type Topology struct {
-	streams []Stream
-	tables  []Table
+	nodes        []Node
+	cachedTables []*Table
+	//streams []Stream
+	//tables  []Table
 	//global ktables
 	producerChan chan *kafka.Message
 

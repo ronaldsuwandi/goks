@@ -71,12 +71,10 @@ func (g *Goks) Start() error {
 
 	var inputTopics []string
 
-	for _, s := range g.topology.streams {
-		inputTopics = append(inputTopics, s.topic)
-	}
-
-	for _, t := range g.topology.tables {
-		inputTopics = append(inputTopics, t.topic)
+	for _, s := range g.topology.nodes {
+		if s.Topic() != "" {
+			inputTopics = append(inputTopics, s.Topic())
+		}
 	}
 
 	// TODO deal with rebalance
@@ -113,8 +111,8 @@ func (g *Goks) Start() error {
 
 		case <-g.commitTicker.C:
 			log.Println("tick. push downstream for tables")
-			for i := range g.topology.tables {
-				g.topology.tables[i].flushCacheDownstream()
+			for i := range g.topology.cachedTables {
+				g.topology.cachedTables[i].flushCacheDownstream()
 			}
 
 		default:
@@ -125,10 +123,15 @@ func (g *Goks) Start() error {
 			switch e := ev.(type) {
 			case *kafka.Message:
 				//fmt.Printf("%% Message on %s:\n%s\n", e.TopicPartition, string(e.Value))
-				for i, s := range g.topology.streams {
+				for i, n := range g.topology.nodes {
+					// ignore if message is from different topic
+					if n.Topic() != *e.TopicPartition.Topic {
+						continue
+					}
+
 					// deserialize here
-					dk := s.deserializer.Deserialize(e.Key)
-					dv := s.deserializer.Deserialize(e.Value)
+					dk := n.Deserializer().Deserialize(e.Key)
+					dv := n.Deserializer().Deserialize(e.Value)
 
 					kvc := KeyValueContext{
 						Key: dk,
@@ -138,23 +141,7 @@ func (g *Goks) Start() error {
 						},
 					}
 
-					g.topology.streams[i].process(kvc)
-				}
-
-				for i, t := range g.topology.tables {
-					// deserialize here
-					dk := t.deserializer.Deserialize(e.Key)
-					dv := t.deserializer.Deserialize(e.Value)
-
-					kvc := KeyValueContext{
-						Key: dk,
-						ValueContext: ValueContext{
-							Value: dv,
-							Ctx:   contextFrom(e),
-						},
-					}
-
-					g.topology.tables[i].process(kvc)
+					g.topology.nodes[i].process(kvc)
 				}
 
 				//TODO commit.interval.ms cache

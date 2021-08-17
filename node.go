@@ -1,10 +1,18 @@
 package goks
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/ronaldsuwandi/goks/serde"
+)
 
 type Node interface {
 	ID() string
+	Topic() string
 	DownstreamNodes() []Node
+
+	Deserializer() serde.Deserializer
+	Serializer() serde.Serializer
+
 	process(kvc KeyValueContext)
 }
 

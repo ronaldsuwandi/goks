@@ -3,12 +3,12 @@ package goks
 import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/ronaldsuwandi/goks/serde"
-	"log"
 )
 
 type TopologyBuilder struct {
-	streams []Stream
-	tables  []Table
+	nodes []Node
+	//streams []Stream
+	//tables  []Table
 	//global ktables
 
 	// config
@@ -18,7 +18,7 @@ type TopologyBuilder struct {
 }
 
 func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer) *Stream {
-	tb.streams = append(tb.streams, Stream{
+	s := Stream{
 		topic:        topic,
 		deserializer: deserializer,
 
@@ -29,58 +29,61 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 		producerChan: tb.producerChan,
 
 		internalCounter: tb.counter,
-	})
+	}
+
+	tb.nodes = append(tb.nodes, &s)
 	tb.counter++
-	result := &tb.streams[len(tb.streams)-1]
-	return result
+	return &s
 }
 
 func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
-	tb.tables = append(tb.tables, NewInputTable(topic, deserializer, tb.counter, true))
+	t := NewInputTable(topic, deserializer, tb.counter, true)
+	tb.nodes = append(tb.nodes, &t)
 	tb.counter++
-	result := &tb.tables[len(tb.tables)-1]
-	return result
+	return &t
 }
 
 func (tb *TopologyBuilder) Print() {
-	log.Printf("tb addr: %+v\n", tb.streams[0])
+	//log.Printf("tb addr: %+v\n", tb.streams[0])
 }
 
-func findTables(n Node, result []Node) {
-	for _, d := range n.DownstreamNodes() {
-		t, ok := d.(*Table)
-		if ok && t.cached {
-			result = append(result, t)
-		}
-
-		findTables(d, result)
+func findCachedTables(n Node) []*Table {
+	t, ok := n.(*Table)
+	var result []*Table
+	if ok && t.cached {
+		result = append(result, t)
 	}
 
+	for _, d := range n.DownstreamNodes() {
+		downstreamCachedTables := findCachedTables(d)
+		for i := range downstreamCachedTables {
+			result = append(result, downstreamCachedTables[i])
+		}
+	}
+
+	return result
 }
 
 func (tb TopologyBuilder) Build() Topology {
 	// FIXME iterate through topology...
-	//[]
-	//tables := tb.tables
-	//tablesFromStream
-	//tablesFromTablee (table->stream->CACHEDtable)
-	//for _, t := range tb.streams
+	var cachedTables []*Table
+	for _, n := range tb.nodes {
+		downstreamCachedTables := findCachedTables(n)
+		for i := range downstreamCachedTables {
+			cachedTables = append(cachedTables, downstreamCachedTables[i])
+		}
+	}
 
 	// TODO iterate through input streams, find if there's Table() method
 
-
 	// FIXME validate topology
 
-
-
 	return Topology{
-		streams:      tb.streams,
-		tables:       tb.tables,
+		nodes:        tb.nodes,
+		cachedTables: cachedTables,
 		producerChan: tb.producerChan,
 	}
 }
-
-func noop(_ KeyValueContext) {}
 
 func NewTopologyBuilder( /*config*/ ) TopologyBuilder {
 	return TopologyBuilder{

@@ -97,6 +97,18 @@ func (t *Table) ID() string {
 	return t.id
 }
 
+func (t *Table) Topic() string {
+	return t.topic
+}
+
+func (t *Table) Deserializer() serde.Deserializer {
+	return t.deserializer
+}
+
+func (t *Table) Serializer() serde.Serializer {
+	return t.serializer
+}
+
 func (t *Table) DownstreamNodes() []Node {
 	return t.downstreamNodes
 }
