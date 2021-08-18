@@ -81,8 +81,9 @@ func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 }
 
 func (s *Stream) Table(cached bool) *Table {
-	next := NewTable()
-	next.id = generateID("STREAM-TO-TABLE", s.internalCounter)
+	next := NewTable(s.producerChan)
+	next.internalCounter = s.internalCounter + 1
+	next.id = generateID("STREAM-TO-TABLE", next.internalCounter)
 	next.cached = cached
 	if cached {
 		next.commitCache = make(map[interface{}]KeyValueContext)
@@ -175,3 +176,5 @@ func NewStream(producerChan chan<- *kafka.Message) Stream {
 // identifier set on topology builder
 // identify cacheable table, cacheable tables should somehow be
 // found on goks main thread so that it can force cache flush on ticker
+
+// TODO implement join

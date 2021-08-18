@@ -1,6 +1,9 @@
 package goks
 
-import "github.com/ronaldsuwandi/goks/serde"
+import (
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/ronaldsuwandi/goks/serde"
+)
 
 type Table struct {
 	id              string
@@ -21,6 +24,8 @@ type Table struct {
 	commitCache map[interface{}]KeyValueContext // for commit cache
 
 	cached bool
+
+	producerChan chan<- *kafka.Message
 
 	// FIXME how to implement suppress?
 }
@@ -54,7 +59,7 @@ func (t *Table) flushCacheDownstream() {
 }
 
 func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
-	next := NewTable()
+	next := NewTable(t.producerChan)
 
 	next.internalCounter = t.internalCounter + 1
 	next.id = generateID("TABLE-MAPVALUES", next.internalCounter)
@@ -67,16 +72,26 @@ func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 	return &next
 }
 
+func (t *Table) Stream() *Stream {
+	next := NewStream(t.producerChan)
+	next.internalCounter = t.internalCounter + 1
+	next.id = generateID("TABLE-TO-STREAM", next.internalCounter)
+	next.processFn = NoopProcessorFn(true)
+	t.downstreamNodes = append(t.downstreamNodes, &next)
+	return &next
+}
+
 // TODO commit interval to be configurable
-func NewTable() Table {
+func NewTable(producerChan chan<- *kafka.Message) Table {
 	return Table{
 		processFn:       NoopProcessorFn(true),
 		downstreamNodes: []Node{},
 		cached:          false,
+		producerChan:    producerChan,
 	}
 }
 
-func NewInputTable(topic string, deserializer serde.Deserializer, counter int, cached bool) Table {
+func NewInputTable(topic string, deserializer serde.Deserializer, counter int, cached bool, producerChan chan<- *kafka.Message) Table {
 	t := Table{
 		topic:           topic,
 		deserializer:    deserializer,
@@ -85,6 +100,7 @@ func NewInputTable(topic string, deserializer serde.Deserializer, counter int, c
 		cached:          cached,
 		stateStore:      make(map[interface{}]interface{}),
 		commitCache:     make(map[interface{}]KeyValueContext),
+		producerChan:    producerChan,
 		internalCounter: counter,
 	}
 

@@ -37,7 +37,7 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 }
 
 func (tb *TopologyBuilder) Table(topic string, deserializer serde.Deserializer) *Table {
-	t := NewInputTable(topic, deserializer, tb.counter, true)
+	t := NewInputTable(topic, deserializer, tb.counter, true, tb.producerChan)
 	tb.nodes = append(tb.nodes, &t)
 	tb.counter++
 	return &t
