@@ -23,13 +23,13 @@ type Stream struct {
 	producerChan chan<- *kafka.Message
 }
 
-func (s *Stream) process(kvc KeyValueContext) {
+func (s *Stream) process(kvc KeyValueContext, src Node) {
 	//deserialize + serialize?
-	nextKvc, continueDownstream := s.processFn(kvc)
+	nextKvc, continueDownstream := s.processFn(kvc, src)
 
 	if continueDownstream {
 		for i := range s.downstreamNodes {
-			s.downstreamNodes[i].process(nextKvc)
+			s.downstreamNodes[i].process(nextKvc, s)
 		}
 	}
 }
@@ -37,7 +37,7 @@ func (s *Stream) process(kvc KeyValueContext) {
 func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+	next.processFn = func(kvc KeyValueContext, _ Node) (KeyValueContext, bool) {
 		return kvc, fn(kvc)
 	}
 
@@ -59,7 +59,7 @@ func (s *Stream) Filter(fn func(kvc KeyValueContext) bool) *Stream {
 func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+	next.processFn = func(kvc KeyValueContext, _ Node) (KeyValueContext, bool) {
 		vc := fn(kvc)
 		return KeyValueContext{Key: kvc.Key, ValueContext: vc}, true
 	}
@@ -71,7 +71,7 @@ func (s *Stream) MapValues(fn func(kvc KeyValueContext) ValueContext) *Stream {
 func (s *Stream) Peek(fn func(kvc KeyValueContext)) *Stream {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+	next.processFn = func(kvc KeyValueContext, src Node) (KeyValueContext, bool) {
 		fn(kvc)
 		return kvc, true
 	}
@@ -96,7 +96,7 @@ func (s *Stream) Table(cached bool) *Table {
 func (s *Stream) To(topic string, serializer serde.Serializer) {
 	next := NewStream(s.producerChan)
 
-	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+	next.processFn = func(kvc KeyValueContext, _ Node) (KeyValueContext, bool) {
 		sk := serializer.Serialize(kvc.Key)
 		sv := serializer.Serialize(kvc.Value)
 

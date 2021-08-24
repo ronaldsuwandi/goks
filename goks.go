@@ -141,7 +141,7 @@ func (g *Goks) Start() error {
 						},
 					}
 
-					g.topology.nodes[i].process(kvc)
+					g.topology.nodes[i].process(kvc, nil)
 				}
 
 				//TODO commit.interval.ms cache

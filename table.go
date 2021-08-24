@@ -30,28 +30,28 @@ type Table struct {
 	// FIXME how to implement suppress?
 }
 
-func (t *Table) process(kvc KeyValueContext) {
+func (t *Table) process(kvc KeyValueContext, src Node) {
 	if t.cached {
 		t.commitCache[kvc.Key] = kvc
 	} else {
-		t.downstream(kvc)
+		t.downstream(kvc, src)
 	}
 }
 
-func (t *Table) downstream(kvc KeyValueContext) {
+func (t *Table) downstream(kvc KeyValueContext, src Node) {
 	//deserialize + serialize?
-	nextKvc, continueDownstream := t.processFn(kvc)
+	nextKvc, continueDownstream := t.processFn(kvc, src)
 
 	if continueDownstream {
 		for i := range t.downstreamNodes {
-			t.downstreamNodes[i].process(nextKvc)
+			t.downstreamNodes[i].process(nextKvc, t)
 		}
 	}
 }
 
 func (t *Table) flushCacheDownstream() {
 	for i, kvc := range t.commitCache {
-		t.downstream(kvc)
+		t.downstream(kvc, nil)
 		// add to state store and remove commit cache
 		t.stateStore[i] = kvc
 		delete(t.commitCache, i)
@@ -63,7 +63,7 @@ func (t *Table) MapValues(fn func(kvc KeyValueContext) ValueContext) *Table {
 
 	next.internalCounter = t.internalCounter + 1
 	next.id = generateID("TABLE-MAPVALUES", next.internalCounter)
-	next.processFn = func(kvc KeyValueContext) (KeyValueContext, bool) {
+	next.processFn = func(kvc KeyValueContext, _ Node) (KeyValueContext, bool) {
 		vc := fn(kvc)
 		return KeyValueContext{Key: kvc.Key, ValueContext: vc}, true
 	}

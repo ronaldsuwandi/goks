@@ -22,7 +22,7 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 		topic:        topic,
 		deserializer: deserializer,
 
-		processFn: func(kvc KeyValueContext) (KeyValueContext, bool) {
+		processFn: func(kvc KeyValueContext, _ Node) (KeyValueContext, bool) {
 			return kvc, true
 		},
 
@@ -30,7 +30,7 @@ func (tb *TopologyBuilder) Stream(topic string, deserializer serde.Deserializer)
 
 		internalCounter: tb.counter,
 	}
-
+	s.id = generateID("STREAM-INPUT", s.internalCounter)
 	tb.nodes = append(tb.nodes, &s)
 	tb.counter++
 	return &s
