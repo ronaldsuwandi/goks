@@ -1,30 +1,51 @@
 package goks
 
+import "github.com/confluentinc/confluent-kafka-go/kafka"
+
 type StreamJoiner struct {
 	Stream
 
-	source   Node
-	joinerFn NodeJoinerFn
+	source     Node
+	joinerFn   NodeJoinerFn
+	stateStore map[interface{}]KeyValueContext // generics for key and value]
 }
 
 func (s *StreamJoiner) Source() Node {
 	return s.source
 }
 
-func (s *StreamJoiner) InnerJoinTable(t *Table, joinerFn NodeJoinerFn) *Stream {
-	next := NewStream(s.producerChan)
+func (s *Stream) InnerJoinTable(t *Table, joinerFn NodeJoinerFn) *Stream {
+	next := NewStreamJoiner(s.producerChan, s)
 
 	next.processFn = func(kvc KeyValueContext, src Node) (KeyValueContext, bool) {
-		// TODO
-		// if src == s.source, then it's left
-		// else it's right
-		// if left, check if corresponding right available - look up state store?
-		// if right, check if corresponding left is available - look up in memory cache?
-		joinerFn()
-		vc := fn(kvc)
-		return KeyValueContext{Key: kvc.Key, ValueContext: vc}, true
+		if src != next.source {
+			next.stateStore[kvc.Key] = kvc
+			return kvc, false
+		}
+
+		right, ok := next.stateStore[kvc.Key]
+		if ok {
+			result := joinerFn(kvc, right)
+			return result, true
+		}
+
+		return kvc, false
 	}
 
 	s.downstreamNodes = append(s.downstreamNodes, &next)
-	return &next
+	t.downstreamNodes = append(t.downstreamNodes, &next)
+	return &next.Stream
+}
+
+func NewStreamJoiner(producerChan chan<- *kafka.Message, source Node) StreamJoiner {
+	return StreamJoiner{
+		Stream: Stream{
+			processFn:       NoopProcessorFn(false),
+			producerChan:    producerChan,
+			downstreamNodes: []Node{},
+		},
+
+		source:     source,
+		stateStore: make(map[interface{}]KeyValueContext),
+	}
 }

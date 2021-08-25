@@ -20,7 +20,7 @@ type Table struct {
 	serializer   serde.Serializer
 	deserializer serde.Deserializer
 
-	stateStore  map[interface{}]interface{}     // generics for key and value
+	stateStore  map[interface{}]KeyValueContext // generics for key and value
 	commitCache map[interface{}]KeyValueContext // for commit cache
 
 	cached bool
@@ -98,7 +98,7 @@ func NewInputTable(topic string, deserializer serde.Deserializer, counter int, c
 		processFn:       NoopProcessorFn(true),
 		downstreamNodes: []Node{},
 		cached:          cached,
-		stateStore:      make(map[interface{}]interface{}),
+		stateStore:      make(map[interface{}]KeyValueContext),
 		commitCache:     make(map[interface{}]KeyValueContext),
 		producerChan:    producerChan,
 		internalCounter: counter,

@@ -102,18 +102,30 @@ func main() {
 	////	})
 	////}
 
-	table := tb.Table("input", serde.StringDeserializer{})
-	table.
-		MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
-			log.Println("KVC FROM TABLE" + kvc.Key.(string) + ": " + kvc.Value.(string))
-			return goks.ValueContext{
-				Value: kvc.Value.(string) + "MAP-FROM-TABLE",
-				Ctx:   kvc.Ctx, // must include
-			}
+	//table := tb.Table("input", serde.StringDeserializer{})
+	//table.
+	//	MapValues(func(kvc goks.KeyValueContext) goks.ValueContext {
+	//		log.Println("KVC FROM TABLE" + kvc.Key.(string) + ": " + kvc.Value.(string))
+	//		return goks.ValueContext{
+	//			Value: kvc.Value.(string) + "MAP-FROM-TABLE",
+	//			Ctx:   kvc.Ctx, // must include
+	//		}
+	//	}).
+	//	Stream().
+	//	Peek(func(kvc goks.KeyValueContext) {
+	//		log.Println("PEEK FROM STREAM! " + kvc.Key.(string) + ": " + kvc.Value.(string))
+	//	})
+
+	table := tb.Table("table", serde.StringDeserializer{})
+
+	tb.Stream("input", serde.StringDeserializer{}).
+		InnerJoinTable(table, func(left goks.KeyValueContext, right goks.KeyValueContext) goks.KeyValueContext {
+			v := left.Value.(string) + "-JOINED-" + right.Value.(string)
+			left.Value = v
+			return left
 		}).
-		Stream().
 		Peek(func(kvc goks.KeyValueContext) {
-			log.Println("PEEK FROM STREAM! " + kvc.Key.(string) + ": " + kvc.Value.(string))
+			log.Printf("PEEK -> %s\n", kvc.Value)
 		})
 
 	topology := tb.Build()

@@ -87,7 +87,7 @@ func (s *Stream) Table(cached bool) *Table {
 	next.cached = cached
 	if cached {
 		next.commitCache = make(map[interface{}]KeyValueContext)
-		next.stateStore = make(map[interface{}]interface{}) // TODO separate cache and logging
+		next.stateStore = make(map[interface{}]KeyValueContext) // TODO separate cache and logging
 	}
 	s.downstreamNodes = append(s.downstreamNodes, &next)
 	return &next
